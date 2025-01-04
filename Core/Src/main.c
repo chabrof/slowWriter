@@ -66,6 +66,8 @@ static void MX_SPI2_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+// (Chabe) SWO printf config :
 /*int _write(int file, char *ptr, int len) {
   int DataIdx;
   for (DataIdx = 0; DataIdx < len; DataIdx++) {
@@ -74,24 +76,16 @@ static void MX_SPI2_Init(void);
   return len;
 }*/
 
+// (Chabe) USART printf configuration :
 #ifdef __GNUC__
-  /* With GCC/RAISONANCE, small printf (option LD Linker->Libraries->Small printf
-     set to 'Yes') calls __io_putchar() */
   #define PUTCHAR_PROTOTYPE int __io_putchar(int ch)
 #else
   #define PUTCHAR_PROTOTYPE int fputc(int ch, FILE *f)
 #endif /* __GNUC__ */
-/**
-  * @brief  Retargets the C library printf function to the USART.
-  * @param  None
-  * @retval None
-  */
+
 PUTCHAR_PROTOTYPE
 {
-  /* Place your implementation of fputc here */
-  /* e.g. write a character to the EVAL_COM1 and Loop until the end of transmission */
   HAL_UART_Transmit(&huart4, (uint8_t *)&ch, 1, 0xFFFF);
-
   return ch;
 }
 /* USER CODE END 0 */
@@ -132,6 +126,63 @@ int main(void)
   MX_UART4_Init();
   MX_SPI2_Init();
   /* USER CODE BEGIN 2 */
+  epd_init();
+
+  epd_paint_newimage(image_bw, EPD_W, EPD_H, EPD_ROTATE_270, EPD_COLOR_WHITE);
+  epd_paint_selectimage(image_bw);
+  epd_paint_clear(EPD_COLOR_WHITE);
+  epd_paint_showPicture(
+    (EPD_W - 250) / 2,
+    (EPD_H - 122) / 2,
+    250, 122,
+    gImage_4,
+    EPD_COLOR_WHITE);
+  epd_displayBW(image_bw);
+  epd_enter_deepsleepmode(EPD_DEEPSLEEP_MODE1);
+
+  HAL_Delay(5000);
+
+  epd_init_partial();
+
+  epd_paint_selectimage(image_bw);
+  epd_paint_clear(EPD_COLOR_WHITE);
+
+  epd_paint_showString(10, 0, (uint8_t *)&"4.2 Inch Epaper Module", EPD_FONT_SIZE24x12, EPD_COLOR_BLACK);
+  epd_paint_showString(10, 50, (uint8_t *)&"with 400 x 300 resolution", EPD_FONT_SIZE16x8, EPD_COLOR_BLACK);
+  epd_paint_showString(10, 29, (uint8_t *)&"Designed By WeAct Studio", EPD_FONT_SIZE16x8, EPD_COLOR_BLACK);
+
+  #if 1
+    epd_paint_showString(10,100,(uint8_t *)&"CH32F103C8T6 Example",EPD_FONT_SIZE16x8,EPD_COLOR_BLACK);
+  #else
+    epd_paint_drawRectangle(10, EPD_W-20, EPD_H - 10, EPD_W-6, EPD_COLOR_BLACK, 1);
+  #endif
+
+  sprintf((char *)&text, ">> Partial Mode");
+  epd_paint_showString(10, 71, text, EPD_FONT_SIZE24x12, EPD_COLOR_BLACK);
+
+  epd_displayBW_partial(image_bw);
+
+  delay(1000);
+
+  for (uint32_t i = 123; i < 8 * 123; i += 123)
+  {
+    sprintf((char *)&text, ">> Num=%d     ", i);
+    epd_paint_showString(10, 71, text, EPD_FONT_SIZE24x12, EPD_COLOR_BLACK);
+
+    epd_displayBW_partial(image_bw);
+
+    delay(100);
+  }
+
+  sprintf((char *)&text, ">> Hello World.");
+  epd_paint_showString(10, 71, text, EPD_FONT_SIZE24x12, EPD_COLOR_BLACK);
+  epd_displayBW_partial(image_bw);
+
+  delay(1000);
+
+  epd_update();
+
+  epd_enter_deepsleepmode(EPD_DEEPSLEEP_MODE1);
   /* USER CODE END 2 */
 
   /* Infinite loop */
