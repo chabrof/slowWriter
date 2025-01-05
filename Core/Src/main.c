@@ -21,6 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "stdint.h"
 #include "stdio.h"
 #include "epaper.h"
 #include "bmp.h"
@@ -98,7 +99,7 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-
+  uint8_t text[20];
   /* USER CODE END 1 */
 
   /* MPU Configuration--------------------------------------------------------*/
@@ -126,8 +127,10 @@ int main(void)
   MX_UART4_Init();
   MX_SPI2_Init();
   /* USER CODE BEGIN 2 */
+  HAL_Delay(1000);
+  printf("Prog start.\r\n");
   epd_init();
-
+  epd_paint_clear(EPD_COLOR_WHITE);
   epd_paint_newimage(image_bw, EPD_W, EPD_H, EPD_ROTATE_270, EPD_COLOR_WHITE);
   epd_paint_selectimage(image_bw);
   epd_paint_clear(EPD_COLOR_WHITE);
@@ -135,12 +138,12 @@ int main(void)
     (EPD_W - 250) / 2,
     (EPD_H - 122) / 2,
     250, 122,
-    gImage_4,
+    gImage_1,
     EPD_COLOR_WHITE);
   epd_displayBW(image_bw);
-  epd_enter_deepsleepmode(EPD_DEEPSLEEP_MODE1);
+  //epd_enter_deepsleepmode(EPD_DEEPSLEEP_MODE1);
 
-  HAL_Delay(5000);
+  HAL_Delay(2000);
 
   epd_init_partial();
 
@@ -151,35 +154,45 @@ int main(void)
   epd_paint_showString(10, 50, (uint8_t *)&"with 400 x 300 resolution", EPD_FONT_SIZE16x8, EPD_COLOR_BLACK);
   epd_paint_showString(10, 29, (uint8_t *)&"Designed By WeAct Studio", EPD_FONT_SIZE16x8, EPD_COLOR_BLACK);
 
-  #if 1
+  /*#if 0
     epd_paint_showString(10,100,(uint8_t *)&"CH32F103C8T6 Example",EPD_FONT_SIZE16x8,EPD_COLOR_BLACK);
-  #else
-    epd_paint_drawRectangle(10, EPD_W-20, EPD_H - 10, EPD_W-6, EPD_COLOR_BLACK, 1);
-  #endif
-
+  #else*/
+  epd_paint_drawRectangle(10, EPD_W-20, EPD_H - 10, EPD_W-6, EPD_COLOR_BLACK, 1);
+  epd_update();
+  //#endif
+  HAL_Delay(1500);
+  /*epd_paint_clear(EPD_COLOR_WHITE);
+  HAL_Delay(700);
+  epd_paint_clear(EPD_COLOR_BLACK);
+  HAL_Delay(700);
+  epd_paint_clear(EPD_COLOR_WHITE);
+  HAL_Delay(700);
+  epd_paint_clear(EPD_COLOR_BLACK);
+*/
   sprintf((char *)&text, ">> Partial Mode");
   epd_paint_showString(10, 71, text, EPD_FONT_SIZE24x12, EPD_COLOR_BLACK);
 
   epd_displayBW_partial(image_bw);
 
-  delay(1000);
+  printf("Before loop.\r\n");
+  HAL_Delay(500);
 
-  for (uint32_t i = 123; i < 8 * 123; i += 123)
+  for (int i = 123; i < 8 * 123; i += 123)
   {
     sprintf((char *)&text, ">> Num=%d     ", i);
     epd_paint_showString(10, 71, text, EPD_FONT_SIZE24x12, EPD_COLOR_BLACK);
 
     epd_displayBW_partial(image_bw);
 
-    delay(100);
+    HAL_Delay(100);
   }
 
   sprintf((char *)&text, ">> Hello World.");
   epd_paint_showString(10, 71, text, EPD_FONT_SIZE24x12, EPD_COLOR_BLACK);
   epd_displayBW_partial(image_bw);
 
-  delay(1000);
-
+  HAL_Delay(1000);
+  epd_paint_clear(EPD_COLOR_WHITE);
   epd_update();
 
   epd_enter_deepsleepmode(EPD_DEEPSLEEP_MODE1);
@@ -197,9 +210,9 @@ int main(void)
       ITM_SendChar('c');
       ITM_SendChar('\n');*/
       printf("DEB ");
-      printf("LED\r\n");
+      printf("LED EPAPER\r\n");
       HAL_GPIO_TogglePin (GPIOE, GPIO_PIN_3);
-      HAL_Delay (500);   /* Insert delay 100 ms */
+      HAL_Delay (4000);   /* Insert delay 100 ms */
   }
   /* USER CODE END 3 */
 }
@@ -281,12 +294,12 @@ static void MX_SPI2_Init(void)
   /* SPI2 parameter configuration*/
   hspi2.Instance = SPI2;
   hspi2.Init.Mode = SPI_MODE_MASTER;
-  hspi2.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi2.Init.DataSize = SPI_DATASIZE_4BIT;
+  hspi2.Init.Direction = SPI_DIRECTION_2LINES_TXONLY;
+  hspi2.Init.DataSize = SPI_DATASIZE_8BIT;
   hspi2.Init.CLKPolarity = SPI_POLARITY_HIGH;
   hspi2.Init.CLKPhase = SPI_PHASE_2EDGE;
   hspi2.Init.NSS = SPI_NSS_SOFT;
-  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
+  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_256;
   hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;

@@ -4,6 +4,7 @@
  *  Created on: Jan 4, 2025
  *      Author: franc
  */
+#include "stm32h7xx_hal.h"
 #ifndef __EPAPER_H
   #define __EPAPER_H
 
@@ -52,6 +53,8 @@
         uint16_t HeightByte;
       } EPD_PAINT;
       extern EPD_PAINT EPD_Paint;
+
+      extern SPI_HandleTypeDef hspi2;
 
       void epd_io_init(void);
       uint8_t epd_init(void);
