@@ -1,30 +1,31 @@
 /* USER CODE BEGIN Header */
-/**
-  ******************************************************************************
-  * @file           : main.c
-  * @brief          : Main program body
-  ******************************************************************************
-  * @attention
-  *
-  * Copyright (c) 2024 STMicroelectronics.
-  * All rights reserved.
-  *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
-  *
-  ******************************************************************************
-  */
+#define __WE_ACT_STUDIO_VERSION
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "stdint.h"
-#include "stdio.h"
-#include "epaper.h"
-#include "bmp.h"
+
+
+#ifdef __WE_ACT_STUDIO_VERSION
+  // WeActStudio includes :
+  #include "stdint.h"
+  #include "stdio.h"
+  #include "epaper.h"
+  #include "bmp.h"
+
+#else
+  // Waveshare includes :
+  #include "DEV_Config.h"
+  #include "GUI_Paint.h"
+  #include "imagedata.h"
+  #include "Debug.h"
+  #include <stdlib.h> // malloc() free()
+  #include "EPD_4in2_V2.h"
+  #include <string.h>
+#endif
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -127,79 +128,16 @@ int main(void)
   MX_UART4_Init();
   MX_SPI2_Init();
   /* USER CODE BEGIN 2 */
-  HAL_Delay(1000);
-  printf("Prog start.\r\n");
-  epd_init();
-  epd_paint_clear(EPD_COLOR_WHITE);
-  epd_paint_newimage(image_bw, EPD_W, EPD_H, EPD_ROTATE_270, EPD_COLOR_WHITE);
-  epd_paint_selectimage(image_bw);
-  epd_paint_clear(EPD_COLOR_WHITE);
-  epd_paint_showPicture(
-    (EPD_W - 250) / 2,
-    (EPD_H - 122) / 2,
-    250, 122,
-    gImage_1,
-    EPD_COLOR_WHITE);
-  epd_displayBW(image_bw);
-  //epd_enter_deepsleepmode(EPD_DEEPSLEEP_MODE1);
-
-  HAL_Delay(2000);
-
-  epd_init_partial();
-
-  epd_paint_selectimage(image_bw);
-  epd_paint_clear(EPD_COLOR_WHITE);
-
-  epd_paint_showString(10, 0, (uint8_t *)&"4.2 Inch Epaper Module", EPD_FONT_SIZE24x12, EPD_COLOR_BLACK);
-  epd_paint_showString(10, 50, (uint8_t *)&"with 400 x 300 resolution", EPD_FONT_SIZE16x8, EPD_COLOR_BLACK);
-  epd_paint_showString(10, 29, (uint8_t *)&"Designed By WeAct Studio", EPD_FONT_SIZE16x8, EPD_COLOR_BLACK);
-
-  /*#if 0
-    epd_paint_showString(10,100,(uint8_t *)&"CH32F103C8T6 Example",EPD_FONT_SIZE16x8,EPD_COLOR_BLACK);
-  #else*/
-  epd_paint_drawRectangle(10, EPD_W-20, EPD_H - 10, EPD_W-6, EPD_COLOR_BLACK, 1);
-  epd_update();
-  //#endif
-  HAL_Delay(1500);
-  /*epd_paint_clear(EPD_COLOR_WHITE);
-  HAL_Delay(700);
-  epd_paint_clear(EPD_COLOR_BLACK);
-  HAL_Delay(700);
-  epd_paint_clear(EPD_COLOR_WHITE);
-  HAL_Delay(700);
-  epd_paint_clear(EPD_COLOR_BLACK);
-*/
-  sprintf((char *)&text, ">> Partial Mode");
-  epd_paint_showString(10, 71, text, EPD_FONT_SIZE24x12, EPD_COLOR_BLACK);
-
-  epd_displayBW_partial(image_bw);
-
-  printf("Before loop.\r\n");
-  HAL_Delay(500);
-
-  for (int i = 123; i < 8 * 123; i += 123)
-  {
-    sprintf((char *)&text, ">> Num=%d     ", i);
-    epd_paint_showString(10, 71, text, EPD_FONT_SIZE24x12, EPD_COLOR_BLACK);
-
-    epd_displayBW_partial(image_bw);
-
-    HAL_Delay(100);
-  }
-
-  sprintf((char *)&text, ">> Hello World.");
-  epd_paint_showString(10, 71, text, EPD_FONT_SIZE24x12, EPD_COLOR_BLACK);
-  epd_displayBW_partial(image_bw);
-
-  HAL_Delay(1000);
-  epd_paint_clear(EPD_COLOR_WHITE);
-  epd_update();
-
-  epd_enter_deepsleepmode(EPD_DEEPSLEEP_MODE1);
+  #ifdef __WE_ACT_STUDIO_VERSION
+    _mainWeActStudio();
+  #else
+    _mainWaveShare();
+  #endif
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+
   while (1)
   {
     /* USER CODE END WHILE */
@@ -209,8 +147,7 @@ int main(void)
       ITM_SendChar('b');
       ITM_SendChar('c');
       ITM_SendChar('\n');*/
-      printf("DEB ");
-      printf("LED EPAPER\r\n");
+
       HAL_GPIO_TogglePin (GPIOE, GPIO_PIN_3);
       HAL_Delay (4000);   /* Insert delay 100 ms */
   }
@@ -490,6 +427,258 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+int _mainWeActStudio(void) {
+  HAL_Delay(1000);
+  printf("WeActStudio start : \r\n");
+  epd_init();
+  epd_paint_clear(EPD_COLOR_WHITE);
+  epd_paint_newimage(image_bw, EPD_W, EPD_H, EPD_ROTATE_270, EPD_COLOR_WHITE);
+  epd_paint_selectimage(image_bw);
+  epd_paint_clear(EPD_COLOR_WHITE);
+  epd_paint_showPicture(
+    (EPD_W - 250) / 2,
+    (EPD_H - 122) / 2,
+    250, 122,
+    gImage_1,
+    EPD_COLOR_WHITE);
+  epd_displayBW(image_bw);
+  //epd_enter_deepsleepmode(EPD_DEEPSLEEP_MODE1);
+
+  HAL_Delay(2000);
+
+  epd_init_partial();
+
+  epd_paint_selectimage(image_bw);
+  epd_paint_clear(EPD_COLOR_WHITE);
+
+  epd_paint_showString(10, 0, (uint8_t *)&"4.2 Inch Epaper Module", EPD_FONT_SIZE24x12, EPD_COLOR_BLACK);
+  epd_paint_showString(10, 50, (uint8_t *)&"with 400 x 300 resolution", EPD_FONT_SIZE16x8, EPD_COLOR_BLACK);
+  epd_paint_showString(10, 29, (uint8_t *)&"Designed By WeAct Studio", EPD_FONT_SIZE16x8, EPD_COLOR_BLACK);
+
+  /*#if 0
+    epd_paint_showString(10,100,(uint8_t *)&"CH32F103C8T6 Example",EPD_FONT_SIZE16x8,EPD_COLOR_BLACK);
+  #else*/
+  epd_paint_drawRectangle(10, EPD_W-20, EPD_H - 10, EPD_W-6, EPD_COLOR_BLACK, 1);
+  epd_update();
+  //#endif
+  HAL_Delay(1500);
+  /*epd_paint_clear(EPD_COLOR_WHITE);
+  HAL_Delay(700);
+  epd_paint_clear(EPD_COLOR_BLACK);
+  HAL_Delay(700);
+  epd_paint_clear(EPD_COLOR_WHITE);
+  HAL_Delay(700);
+  epd_paint_clear(EPD_COLOR_BLACK);
+*/
+  sprintf((char *)&text, ">> Partial Mode");
+  epd_paint_showString(10, 71, text, EPD_FONT_SIZE24x12, EPD_COLOR_BLACK);
+
+  epd_displayBW_partial(image_bw);
+
+  printf("Before loop.\r\n");
+  HAL_Delay(500);
+
+  for (int i = 123; i < 8 * 123; i += 123)
+  {
+    sprintf((char *)&text, ">> Num=%d     ", i);
+    epd_paint_showString(10, 71, text, EPD_FONT_SIZE24x12, EPD_COLOR_BLACK);
+
+    epd_displayBW_partial(image_bw);
+
+    HAL_Delay(100);
+  }
+
+  sprintf((char *)&text, ">> Hello World.");
+  epd_paint_showString(10, 71, text, EPD_FONT_SIZE24x12, EPD_COLOR_BLACK);
+  epd_displayBW_partial(image_bw);
+
+  HAL_Delay(1000);
+  epd_paint_clear(EPD_COLOR_WHITE);
+  epd_update();
+
+  epd_enter_deepsleepmode(EPD_DEEPSLEEP_MODE1);
+
+  printf("END ");
+  printf("(WeActStudio Code)\r\n");
+}
+
+
+int _mainWaveShare(void) {
+  printf("EPD_4IN2_V2_test Demo\r\n");
+  if(DEV_Module_Init()!=0){
+    return -1;
+  }
+
+  printf("e-Paper Init and Clear...\r\n");
+  EPD_4IN2_V2_Init();
+  EPD_4IN2_V2_Clear();
+  DEV_Delay_ms(500);
+
+  //Create a new image cache
+  UBYTE *BlackImage;
+  /* you have to edit the startup_stm32fxxx.s file and set a big enough heap size */
+  UWORD Imagesize = ((EPD_4IN2_V2_WIDTH % 8 == 0)? (EPD_4IN2_V2_WIDTH / 8 ): (EPD_4IN2_V2_WIDTH / 8 + 1)) * EPD_4IN2_V2_HEIGHT;
+  if((BlackImage = (UBYTE *)malloc(Imagesize)) == NULL) {
+    printf("Failed to apply for black memory...\r\n");
+    return -1;
+  }
+  printf("Paint_NewImage\r\n");
+  Paint_NewImage(BlackImage, EPD_4IN2_V2_WIDTH, EPD_4IN2_V2_HEIGHT, 0, WHITE);
+
+  #if 1  // show bmp
+    printf("show window BMP-----------------\r\n");
+    Paint_SelectImage(BlackImage);
+    Paint_Clear(WHITE);
+    Paint_DrawBitMap(gImage_4in2);
+    EPD_4IN2_V2_Display(BlackImage);
+    DEV_Delay_ms(2000);
+
+  #endif
+
+  #if 1  // show image for array
+  //    EPD_4IN2_V2_Init_Fast(Seconds_1_5S);
+    EPD_4IN2_V2_Init_Fast(Seconds_1S);
+    printf("show image for array\r\n");
+    Paint_SelectImage(BlackImage);
+    Paint_Clear(WHITE);
+    Paint_DrawBitMap(gImage_4in2);
+    EPD_4IN2_V2_Display_Fast(BlackImage);
+    DEV_Delay_ms(2000);
+  #endif
+
+  #if 1   // Drawing on the image
+
+    EPD_4IN2_V2_Init();
+    //1.Select Image
+    printf("SelectImage:BlackImage\r\n");
+    Paint_SelectImage(BlackImage);
+    Paint_Clear(WHITE);
+
+    // 2.Drawing on the image
+    printf("Drawing:BlackImage\r\n");
+    Paint_DrawPoint(10, 80, BLACK, DOT_PIXEL_1X1, DOT_STYLE_DFT);
+    Paint_DrawPoint(10, 90, BLACK, DOT_PIXEL_2X2, DOT_STYLE_DFT);
+    Paint_DrawPoint(10, 100, BLACK, DOT_PIXEL_3X3, DOT_STYLE_DFT);
+    Paint_DrawLine(20, 70, 70, 120, BLACK, DOT_PIXEL_1X1, LINE_STYLE_SOLID);
+    Paint_DrawLine(70, 70, 20, 120, BLACK, DOT_PIXEL_1X1, LINE_STYLE_SOLID);
+    Paint_DrawRectangle(20, 70, 70, 120, BLACK, DOT_PIXEL_1X1, DRAW_FILL_EMPTY);
+    Paint_DrawRectangle(80, 70, 130, 120, BLACK, DOT_PIXEL_1X1, DRAW_FILL_FULL);
+    Paint_DrawCircle(45, 95, 20, BLACK, DOT_PIXEL_1X1, DRAW_FILL_EMPTY);
+    Paint_DrawCircle(105, 95, 20, WHITE, DOT_PIXEL_1X1, DRAW_FILL_FULL);
+    Paint_DrawLine(85, 95, 125, 95, BLACK, DOT_PIXEL_1X1, LINE_STYLE_DOTTED);
+    Paint_DrawLine(105, 75, 105, 115, BLACK, DOT_PIXEL_1X1, LINE_STYLE_DOTTED);
+    Paint_DrawString_EN(10, 0, "waveshare", &Font16, BLACK, WHITE);
+    Paint_DrawString_EN(10, 20, "hello world", &Font12, WHITE, BLACK);
+    Paint_DrawNum(10, 33, 123456789, &Font12, BLACK, WHITE);
+    Paint_DrawNum(10, 50, 987654321, &Font16, WHITE, BLACK);
+    Paint_DrawString_CN(130, 0, " ���abc", &Font12CN, BLACK, WHITE);
+    Paint_DrawString_CN(130, 20, "΢ѩ����", &Font24CN, WHITE, BLACK);
+
+    printf("EPD_Display\r\n");
+     // EPD_4IN2_V2_Display(BlackImage);
+    EPD_4IN2_V2_Display(BlackImage);
+    DEV_Delay_ms(2000);
+  #endif
+
+  #if 1
+    printf("Partial refresh\r\n");
+    Paint_NewImage(BlackImage, 200, 50, 0, WHITE);
+    PAINT_TIME sPaint_time;
+    sPaint_time.Hour = 12;
+    sPaint_time.Min = 34;
+    sPaint_time.Sec = 56;
+    UBYTE num = 10;
+    for (;;) {
+        sPaint_time.Sec = sPaint_time.Sec + 1;
+     if (sPaint_time.Sec == 60) {
+       sPaint_time.Min = sPaint_time.Min + 1;
+       sPaint_time.Sec = 0;
+       if (sPaint_time.Min == 60) {
+         sPaint_time.Hour =  sPaint_time.Hour + 1;
+         sPaint_time.Min = 0;
+         if (sPaint_time.Hour == 24) {
+           sPaint_time.Hour = 0;
+           sPaint_time.Min = 0;
+           sPaint_time.Sec = 0;
+         }
+       }
+     }
+     Paint_Clear(WHITE);
+     Paint_DrawTime(20, 10, &sPaint_time, &Font20, WHITE, BLACK);
+     EPD_4IN2_V2_PartialDisplay(BlackImage, 80, 200, 280, 250);
+     DEV_Delay_ms(500);//Analog clock 1s
+     num = num - 1;
+     if(num == 0) {
+       break;
+     }
+     }
+ #endif
+
+
+ #if 1
+     // EPD_4IN2_V2_Init();
+   // EPD_4IN2_V2_Clear();
+   EPD_4IN2_V2_Init_4Gray();
+   printf("show Gray------------------------\r\n");
+   free(BlackImage);
+   BlackImage = NULL;
+   Imagesize = ((EPD_4IN2_V2_WIDTH % 8 == 0)? (EPD_4IN2_V2_WIDTH / 4 ): (EPD_4IN2_V2_WIDTH / 4 + 1)) * EPD_4IN2_V2_HEIGHT;
+     if((BlackImage = (UBYTE *)malloc(Imagesize)) == NULL) {
+         printf("Failed to apply for black memory...\r\n");
+         return -1;
+     }
+   Paint_NewImage(BlackImage, EPD_4IN2_V2_WIDTH, EPD_4IN2_V2_HEIGHT, 0, WHITE);
+   Paint_SetScale(4);
+   Paint_Clear(WHITE);
+
+   Paint_DrawPoint(10, 80, BLACK, DOT_PIXEL_1X1, DOT_STYLE_DFT);
+     Paint_DrawPoint(10, 90, BLACK, DOT_PIXEL_2X2, DOT_STYLE_DFT);
+     Paint_DrawPoint(10, 100, BLACK, DOT_PIXEL_3X3, DOT_STYLE_DFT);
+     Paint_DrawLine(20, 70, 70, 120, BLACK, DOT_PIXEL_1X1, LINE_STYLE_SOLID);
+     Paint_DrawLine(70, 70, 20, 120, BLACK, DOT_PIXEL_1X1, LINE_STYLE_SOLID);
+     Paint_DrawRectangle(20, 70, 70, 120, BLACK, DOT_PIXEL_1X1, DRAW_FILL_EMPTY);
+     Paint_DrawRectangle(80, 70, 130, 120, BLACK, DOT_PIXEL_1X1, DRAW_FILL_FULL);
+     Paint_DrawCircle(45, 95, 20, BLACK, DOT_PIXEL_1X1, DRAW_FILL_EMPTY);
+     Paint_DrawCircle(105, 95, 20, WHITE, DOT_PIXEL_1X1, DRAW_FILL_FULL);
+     Paint_DrawLine(85, 95, 125, 95, BLACK, DOT_PIXEL_1X1, LINE_STYLE_DOTTED);
+     Paint_DrawLine(105, 75, 105, 115, BLACK, DOT_PIXEL_1X1, LINE_STYLE_DOTTED);
+     Paint_DrawString_EN(10, 0, "waveshare", &Font16, BLACK, WHITE);
+     Paint_DrawString_EN(10, 20, "hello world", &Font12, WHITE, BLACK);
+     Paint_DrawNum(10, 33, 123456789, &Font12, BLACK, WHITE);
+     Paint_DrawNum(10, 50, 987654321, &Font16, WHITE, BLACK);
+     Paint_DrawString_CN(140, 0, "���abc", &Font12CN, GRAY1, GRAY4);
+     Paint_DrawString_CN(140, 40, "���abc", &Font12CN, GRAY2, GRAY3);
+     Paint_DrawString_CN(140, 80, "���abc", &Font12CN, GRAY3, GRAY2);
+     Paint_DrawString_CN(140, 120, "���abc", &Font12CN, GRAY4, GRAY1);
+
+     Paint_DrawString_CN(220, 0, "΢ѩ����", &Font24CN, GRAY1, GRAY4);
+     Paint_DrawString_CN(220, 40, "΢ѩ����", &Font24CN, GRAY2, GRAY3);
+     Paint_DrawString_CN(220, 80, "΢ѩ����", &Font24CN, GRAY3, GRAY2);
+     Paint_DrawString_CN(220, 120, "΢ѩ����", &Font24CN, GRAY4, GRAY1);
+
+   EPD_4IN2_V2_Display_4Gray(BlackImage);
+   DEV_Delay_ms(2000);
+
+   Paint_Clear(WHITE);
+     Paint_DrawBitMap(gImage_4in2_4Gray);
+     EPD_4IN2_V2_Display_4Gray(BlackImage);
+   DEV_Delay_ms(2000);
+
+ #endif
+
+     EPD_4IN2_V2_Init();
+     EPD_4IN2_V2_Clear();
+     printf("Goto Sleep...\r\n");
+     EPD_4IN2_V2_Sleep();
+     free(BlackImage);
+     BlackImage = NULL;
+     DEV_Delay_ms(2000);//important, at least 2s
+     // close 5V
+     printf("close 5V, Module enters 0 power consumption ...\r\n");
+     DEV_Module_Exit();
+
+     return 0;
+}
 
 /* USER CODE END 4 */
 
