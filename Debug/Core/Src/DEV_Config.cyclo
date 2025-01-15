@@ -1,0 +1,4 @@
+../Core/Src/DEV_Config.c:37:6:DEV_SPI_WriteByte	1
+../Core/Src/DEV_Config.c:42:6:DEV_SPI_Write_nByte	1
+../Core/Src/DEV_Config.c:133:5:DEV_Module_Init	1
+../Core/Src/DEV_Config.c:142:6:DEV_Module_Exit	1
