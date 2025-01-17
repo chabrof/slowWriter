@@ -1,5 +1,5 @@
 /* USER CODE BEGIN Header */
-#define __WE_ACT_STUDIO_VERSION
+//#define __WE_ACT_STUDIO_VERSION
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
@@ -52,7 +52,9 @@ TIM_HandleTypeDef htim8;
 UART_HandleTypeDef huart4;
 
 /* USER CODE BEGIN PV */
-uint8_t image_bw[EPD_W_BUFF_SIZE * EPD_H];
+#ifdef __WE_ACT_STUDIO_VERSION
+  uint8_t image_bw[EPD_W_BUFF_SIZE * EPD_H];
+#endif
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -64,9 +66,9 @@ static void MX_UART4_Init(void);
 static void MX_SPI2_Init(void);
 /* USER CODE BEGIN PFP */
 #ifdef __WE_ACT_STUDIO_VERSION
-  void _mainWeActStudio(void);
+  int _mainWeActStudio(void);
 #else
-  void _mainWaveShare(void);
+  int _mainWaveShare(void);
 #endif
 /* USER CODE END PFP */
 
@@ -431,7 +433,7 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 #ifdef __WE_ACT_STUDIO_VERSION
-  void _mainWeActStudio(void) {
+  int _mainWeActStudio(void) {
     uint8_t text[20];
 
     HAL_Delay(1000);
@@ -532,17 +534,23 @@ static void MX_GPIO_Init(void)
     printf("Paint_NewImage\r\n");
     Paint_NewImage(BlackImage, EPD_4IN2_V2_WIDTH, EPD_4IN2_V2_HEIGHT, 0, WHITE);
 
-    #if 1  // show bmp
-      printf("show window BMP-----------------\r\n");
+    #if 0  // show bmp
+      printf("Clear WHITE\r\n");
       Paint_SelectImage(BlackImage);
       Paint_Clear(WHITE);
-      Paint_DrawBitMap(gImage_4in2);
+      //Paint_DrawBitMap(gImage_4in2);
+      EPD_4IN2_V2_Display(BlackImage);
+      DEV_Delay_ms(2000);
+      printf("Clear BLACK\r\n");
+      Paint_SelectImage(BlackImage);
+      Paint_Clear(BLACK);
+      //Paint_DrawBitMap(gImage_4in2);
       EPD_4IN2_V2_Display(BlackImage);
       DEV_Delay_ms(2000);
 
     #endif
 
-    #if 1  // show image for array
+    #if 0  // show image for array
     //    EPD_4IN2_V2_Init_Fast(Seconds_1_5S);
       EPD_4IN2_V2_Init_Fast(Seconds_1S);
       printf("show image for array\r\n");
@@ -584,17 +592,20 @@ static void MX_GPIO_Init(void)
       printf("EPD_Display\r\n");
        // EPD_4IN2_V2_Display(BlackImage);
       EPD_4IN2_V2_Display(BlackImage);
-      DEV_Delay_ms(2000);
+      DEV_Delay_ms(1000);
+      Paint_Clear(WHITE);
+      EPD_4IN2_V2_Display(BlackImage);
     #endif
 
     #if 1
-      printf("Partial refresh\r\n");
-      Paint_NewImage(BlackImage, 200, 50, 0, WHITE);
+
+      /*Paint_NewImage(BlackImage, 200, 50, 0, WHITE);
       PAINT_TIME sPaint_time;
       sPaint_time.Hour = 12;
       sPaint_time.Min = 34;
       sPaint_time.Sec = 56;
-      UBYTE num = 10;
+      UBYTE num = 100;
+      Paint_Clear(WHITE);
       for (;;) {
           sPaint_time.Sec = sPaint_time.Sec + 1;
        if (sPaint_time.Sec == 60) {
@@ -610,15 +621,41 @@ static void MX_GPIO_Init(void)
            }
          }
        }
-       Paint_Clear(WHITE);
+       //Paint_Clear(WHITE);
        Paint_DrawTime(20, 10, &sPaint_time, &Font20, WHITE, BLACK);
        EPD_4IN2_V2_PartialDisplay(BlackImage, 80, 200, 280, 250);
-       DEV_Delay_ms(500);//Analog clock 1s
+       //DEV_Delay_ms(10);//Analog clock 1s
        num = num - 1;
        if(num == 0) {
          break;
        }
-       }
+       }*/
+      Paint_Clear(WHITE);
+
+      UWORD Dx = Font20.Width;
+      UWORD Dy = Font20.Height;
+      printf("\r\n\r\nPartial refresh on (%i * %i)\r\n", 30 * Dx, Dy);
+      int subImageWidth = 10;
+      int subImageHeight = 20;
+      Paint_NewImage(BlackImage, 10, 20, 0, WHITE);
+      for (int i = 0; i < 30; i++) {
+        printf("  -> display one letter\r\n");
+        Paint_Clear(WHITE);
+        Paint_DrawChar(0, 0, 'a', &Font20, BLACK, WHITE);
+        int posX = 10 + i * 10;
+        int posY = 100;
+        EPD_4IN2_V2_PartialDisplay(BlackImage, posX, posY, posX + subImageWidth, posY + subImageHeight);
+        //EPD_4IN2_V2_PartialDisplay(BlackImage, 10 + Dx * i, 200, 10 + Dx * (i + 1), 200 + Dy);
+      }
+      printf("\r\n\r\nPartial refresh END\r\n");
+      Paint_Clear(WHITE);
+/*
+      for (int i = 0; i < 30; i++) {
+        Paint_Clear(WHITE);
+        Paint_DrawChar(Dx * i, 0, 'a', &Font20, WHITE, BLACK);
+        EPD_4IN2_V2_PartialDisplay(BlackImage, 10, 200, 10 + Dx * 30, Dy);
+        //EPD_4IN2_V2_PartialDisplay(BlackImage, 10 + Dx * i, 200, 10 + Dx * (i + 1), 200 + Dy);
+      }*/
    #endif
 
 

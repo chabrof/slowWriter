@@ -115,10 +115,12 @@ parameter:
 void EPD_4IN2_V2_ReadBusy(void)
 {
     Debug("e-Paper busy\r\n");
+    int delayInMs  = 0;
     while(DEV_Digital_Read(EPD_BUSY_PIN) == 1) {      //LOW: idle, HIGH: busy
         DEV_Delay_ms(10);
+        delayInMs += 10;
     }
-    Debug("e-Paper busy release\r\n");
+    printf("e-Paper busy release (%i ms)\r\n", delayInMs);
 }
 
 /******************************************************************************
@@ -189,6 +191,7 @@ static void EPD_4IN2_V2_SetCursor(UWORD Xstart, UWORD Ystart)
 }
 
 //LUT download
+
 static void EPD_4IN2_V2_4Gray_lut(void)
 {
     unsigned char i;
@@ -216,6 +219,40 @@ static void EPD_4IN2_V2_4Gray_lut(void)
     //WS byte 158, the content of VCOM level
     EPD_4IN2_V2_SendCommand(0x2c);					
     EPD_4IN2_V2_SendData(LUT_ALL[i++]);//VCOM
+}
+
+#define LUT_FOR_VCOM                                0x20
+#define LUT_WHITE_TO_WHITE                          0x21
+#define LUT_BLACK_TO_WHITE                          0x22
+#define LUT_WHITE_TO_BLACK                          0x23
+#define LUT_BLACK_TO_BLACK                          0x24
+
+static void SetLutQuick(void) {
+  unsigned int count;
+  EPD_4IN2_V2_SendCommand(LUT_FOR_VCOM);                            //vcom
+  for(count = 0; count < 44; count++) {
+    EPD_4IN2_V2_SendData(lut_vcom0_quick[count]);
+  }
+
+  EPD_4IN2_V2_SendCommand(LUT_WHITE_TO_WHITE);                      //ww --
+  for(count = 0; count < 42; count++) {
+    SendData(lut_ww_quick[count]);
+  }
+
+  EPD_4IN2_V2_SendCommand(LUT_BLACK_TO_WHITE);                      //bw r
+  for(count = 0; count < 42; count++) {
+    SendData(lut_bw_quick[count]);
+  }
+
+  EPD_4IN2_V2_SendCommand(LUT_WHITE_TO_BLACK);                      //wb w
+  for(count = 0; count < 42; count++) {
+    SendData(lut_wb_quick[count]);
+  }
+
+  EPD_4IN2_V2_SendCommand(LUT_BLACK_TO_BLACK);                      //bb b
+  for(count = 0; count < 42; count++) {
+    SendData(lut_bb_quick[count]);
+  }
 }
 
 /******************************************************************************
@@ -539,32 +576,31 @@ void EPD_4IN2_V2_PartialDisplay(UBYTE *Image, UWORD Xstart, UWORD Ystart, UWORD 
 	EPD_4IN2_V2_SendCommand(0x3C); 
 	EPD_4IN2_V2_SendData(0x80); 
 
-    EPD_4IN2_V2_SendCommand(0x11);	// data  entry  mode
-    EPD_4IN2_V2_SendData(0x03);		// X-mode  
+  EPD_4IN2_V2_SendCommand(0x11);	// data  entry  mode
+  EPD_4IN2_V2_SendData(0x03);		// X-mode
 
-    EPD_4IN2_V2_SendCommand(0x44);       // set RAM x address start/end, in page 35
-    EPD_4IN2_V2_SendData(Xstart & 0xff);    // RAM x address start at 00h;
-    EPD_4IN2_V2_SendData(Xend & 0xff);    // RAM x address end at 0fh(15+1)*8->128 
-    EPD_4IN2_V2_SendCommand(0x45);       // set RAM y address start/end, in page 35
-    EPD_4IN2_V2_SendData(Ystart & 0xff);    // RAM y address start at 0127h;
-    EPD_4IN2_V2_SendData((Ystart>>8) & 0x01);    // RAM y address start at 0127h;
-    EPD_4IN2_V2_SendData(Yend & 0xff);    // RAM y address end at 00h;
-    EPD_4IN2_V2_SendData((Yend>>8) & 0x01); 
+  EPD_4IN2_V2_SendCommand(0x44);       // set RAM x address start/end, in page 35
+  EPD_4IN2_V2_SendData(Xstart & 0xff);    // RAM x address start at 00h;
+  EPD_4IN2_V2_SendData(Xend & 0xff);    // RAM x address end at 0fh(15+1)*8->128
+  EPD_4IN2_V2_SendCommand(0x45);       // set RAM y address start/end, in page 35
+  EPD_4IN2_V2_SendData(Ystart & 0xff);    // RAM y address start at 0127h;
+  EPD_4IN2_V2_SendData((Ystart>>8) & 0x01);    // RAM y address start at 0127h;
+  EPD_4IN2_V2_SendData(Yend & 0xff);    // RAM y address end at 00h;
+  EPD_4IN2_V2_SendData((Yend>>8) & 0x01);
 
-    EPD_4IN2_V2_SendCommand(0x4E);   // set RAM x address count to 0;
-    EPD_4IN2_V2_SendData(Xstart & 0xff); 
-    EPD_4IN2_V2_SendCommand(0x4F);   // set RAM y address count to 0X127;    
-    EPD_4IN2_V2_SendData(Ystart & 0xff);
-    EPD_4IN2_V2_SendData((Ystart>>8) & 0x01);
+  EPD_4IN2_V2_SendCommand(0x4E);   // set RAM x address count to 0;
+  EPD_4IN2_V2_SendData(Xstart & 0xff);
+  EPD_4IN2_V2_SendCommand(0x4F);   // set RAM y address count to 0X127;
+  EPD_4IN2_V2_SendData(Ystart & 0xff);
+  EPD_4IN2_V2_SendData((Ystart>>8) & 0x01);
 
-    EPD_4IN2_V2_ReadBusy();
+  EPD_4IN2_V2_ReadBusy();
 
-    
-	
-    EPD_4IN2_V2_SendCommand(0x24);
-    for (UWORD j = 0; j < IMAGE_COUNTER; j++) {
-            EPD_4IN2_V2_SendData(Image[j]);
-    }
+
+  EPD_4IN2_V2_SendCommand(0x24);
+  for (UWORD j = 0; j < IMAGE_COUNTER; j++) {
+          EPD_4IN2_V2_SendData(Image[j]);
+  }
 	
 	EPD_4IN2_V2_TurnOnDisplay_Partial();
 }
@@ -574,7 +610,7 @@ parameter:
 ******************************************************************************/
 void EPD_4IN2_V2_Sleep(void)
 {
-    EPD_4IN2_V2_SendCommand(0x10); // DEEP_SLEEP
-    EPD_4IN2_V2_SendData(0x01);
+  EPD_4IN2_V2_SendCommand(0x10); // DEEP_SLEEP
+  EPD_4IN2_V2_SendData(0x01);
 	DEV_Delay_ms(200);
 }
