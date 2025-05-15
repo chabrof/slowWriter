@@ -1,0 +1,16 @@
+../Core/Src/ssd1320_driver.c:6:6:SSD1320_Reset	8	static
+../Core/Src/ssd1320_driver.c:14:6:SSD1320_SendCommandLeft	16	static
+../Core/Src/ssd1320_driver.c:22:6:SSD1320_SendDataLeft	16	static
+../Core/Src/ssd1320_driver.c:31:6:SSD1320_SendCommandRight	16	static
+../Core/Src/ssd1320_driver.c:39:6:SSD1320_SendDataRight	16	static
+../Core/Src/ssd1320_driver.c:48:6:SSD1320_SendCommandBoth	16	static
+../Core/Src/ssd1320_driver.c:57:6:SSD1320_SendDataBoth	16	static
+../Core/Src/ssd1320_driver.c:70:6:HAL_SPI_TxCpltCallback	16	static
+../Core/Src/ssd1320_driver.c:78:6:SSD1320_SetColumnAddressLeft	16	static
+../Core/Src/ssd1320_driver.c:85:6:SSD1320_SetRowAddressLeft	16	static
+../Core/Src/ssd1320_driver.c:92:6:SSD1320_SetColumnAddressRight	16	static
+../Core/Src/ssd1320_driver.c:99:6:SSD1320_SetRowAddressRight	16	static
+../Core/Src/ssd1320_driver.c:106:6:OLED_Clear	24	static
+../Core/Src/ssd1320_driver.c:121:6:SSD1320_SetAddress	24	static
+../Core/Src/ssd1320_driver.c:160:6:SSD1320_SendBuffer	16	static
+../Core/Src/ssd1320_driver.c:198:6:SSD1320_Init	8	static

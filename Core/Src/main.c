@@ -1,5 +1,6 @@
 /* USER CODE BEGIN Header */
 //#define __WE_ACT_STUDIO_VERSION
+//#define __WAVESHARE_EPAPER
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
@@ -7,24 +8,12 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
-
-#ifdef __WE_ACT_STUDIO_VERSION
-  // WeActStudio includes :
-  #include "stdint.h"
-  #include "stdio.h"
-  #include "epaper.h"
-  #include "bmp.h"
-
-#else
-  // Waveshare includes :
-  #include "DEV_Config.h"
-  #include "GUI_Paint.h"
-  #include "imagedata.h"
-  #include "Debug.h"
-  #include <stdlib.h> // malloc() free()
-  #include "EPD_4in2_V2.h"
-  #include <string.h>
-#endif
+#include <string.h>
+#include "stdint.h"
+#include "stdio.h"
+#include "math.h"
+#include "ssd1320_driver.h"
+#include "ssd1320_graphics.h"
 
 /* USER CODE END Includes */
 
@@ -45,13 +34,30 @@
 
 /* Private variables ---------------------------------------------------------*/
 
-SPI_HandleTypeDef hspi2;
+SPI_HandleTypeDef hspi1;
+DMA_HandleTypeDef hdma_spi1_tx;
 
 TIM_HandleTypeDef htim8;
 
 UART_HandleTypeDef huart4;
 
 /* USER CODE BEGIN PV */
+// Frame buffer
+uint8_t frame_buffer_a[SSD1320_BUF_SIZE];
+uint8_t frame_buffer_b[SSD1320_BUF_SIZE];
+
+uint8_t* active_buffer = frame_buffer_a;
+uint8_t* draw_buffer   = frame_buffer_b;
+
+uint8_t frame_ready = 0;
+// Définition du délai pour l'anti-rebond en millisecondes
+#define DEBOUNCE_DELAY 50
+
+// Variables pour le suivi du bouton
+uint32_t lastDebounceTime = 0;
+GPIO_PinState lastButtonState = GPIO_PIN_SET;
+GPIO_PinState buttonState = GPIO_PIN_SET;
+
 #ifdef __WE_ACT_STUDIO_VERSION
   uint8_t image_bw[EPD_W_BUFF_SIZE * EPD_H];
 #endif
@@ -61,15 +67,24 @@ UART_HandleTypeDef huart4;
 void SystemClock_Config(void);
 static void MPU_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_TIM8_Init(void);
 static void MX_UART4_Init(void);
-static void MX_SPI2_Init(void);
+static void MX_SPI1_Init(void);
 /* USER CODE BEGIN PFP */
 #ifdef __WE_ACT_STUDIO_VERSION
   int _mainWeActStudio(void);
-#else
+#endif
+#ifdef __WAVESHARE_EPAPER
   int _mainWaveShare(void);
 #endif
+
+/*void SSD1320_SwapBuffers(void) {
+  uint8_t* temp = active_buffer;
+  active_buffer = draw_buffer;
+  draw_buffer = temp;
+}*/
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -96,6 +111,36 @@ PUTCHAR_PROTOTYPE
   HAL_UART_Transmit(&huart4, (uint8_t *)&ch, 1, 0xFFFF);
   return ch;
 }
+
+
+void App_DrawUI(void)
+{
+  ClearBuffer(draw_buffer);
+  //DrawText4BPP(draw_buffer, "aac", 10, 5, 0xF);
+  //DrawRect4BPP(draw_buffer, 5, 20, 100, 30, 0x7, 0);
+  //DrawLine4BPP(draw_buffer, 0, 0, 127, 63, 0xC);
+  // OLED_Clear(5,20,320,132,0xff);
+  memset(draw_buffer, 0x00, SSD1320_BUF_SIZE);
+  DrawRect4BPP(draw_buffer, 0, 0, 160, 132, 0x8, 0);
+  DrawLine4BPP(draw_buffer, 0, 0, 70, 131, 0x7);
+  DrawLine4BPP(draw_buffer, 0, 0, 40, 131, 0xf);
+  DrawLine4BPP(draw_buffer, 70, 131, 159, 80, 0x9);
+  /*DrawLine4BPP(draw_buffer, 100, 100, 200, 100, 0xff);
+  DrawLine4BPP(draw_buffer, 100, 100, 200, 131, 0xff);
+  DrawLine4BPP(draw_buffer, 200, 100, 200, 131, 0xff);*/
+  printf("Buffer size %i \r\n", SSD1320_BUF_SIZE);
+
+  SSD1320_SetAddress(0, 79, 0, 131);
+  SSD1320_SendBuffer(draw_buffer, SSD1320_BUF_SIZE);
+
+
+
+
+  //SSD1320_SendDataRight(draw_buffer, SSD1320_BUF_SIZE);
+  //SSD1320_SwapBuffers();
+  frame_ready = 1;
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -129,15 +174,23 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_TIM8_Init();
   MX_UART4_Init();
-  MX_SPI2_Init();
+  MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
   #ifdef __WE_ACT_STUDIO_VERSION
     _mainWeActStudio();
-  #else
+  #endif
+  #ifdef __WAVESHARE_EPAPER
     _mainWaveShare();
   #endif
+  HAL_Delay (1000);
+  printf("Screen init : \r\n");
+  SSD1320_Init();
+
+  HAL_Delay (1000);
+  App_DrawUI();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -148,13 +201,42 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-      /*ITM_SendChar('a');
-      ITM_SendChar('b');
-      ITM_SendChar('c');
-      ITM_SendChar('\n');*/
+    /*ITM_SendChar('a');
+    ITM_SendChar('b');
+    ITM_SendChar('c');
+    ITM_SendChar('\n');*/
 
-      HAL_GPIO_TogglePin (GPIOE, GPIO_PIN_3);
-      HAL_Delay (4000);   /* Insert delay 100 ms */
+    // <rotary>
+    GPIO_PinState currentReading = HAL_GPIO_ReadPin(GPIOE, ROT_ENCOD_CLICK_Pin);
+
+    if (currentReading != lastButtonState)
+    {
+      // Le bouton a changé d'état, on reset le timer d'anti-rebond
+      lastDebounceTime = HAL_GetTick();
+    }
+
+    if ((HAL_GetTick() - lastDebounceTime) > DEBOUNCE_DELAY)
+    {
+      // Si le nouvel état est stable pendant DEBOUNCE_DELAY ms
+      if (currentReading != buttonState)
+      {
+        buttonState = currentReading;
+
+        if (buttonState == GPIO_PIN_RESET)
+        {
+          // Action à effectuer quand on appuie sur le bouton
+          HAL_GPIO_TogglePin (GPIOE, LED_ON_BOARD_Pin);
+        }
+      }
+    }
+
+    lastButtonState = currentReading;
+    // </rotary>
+
+    // <blink>
+    //HAL_GPIO_TogglePin (GPIOE, LED_ON_BOARD_Pin);
+    //HAL_Delay (1000);
+    // </blink>
   }
   /* USER CODE END 3 */
 }
@@ -219,50 +301,50 @@ void SystemClock_Config(void)
 }
 
 /**
-  * @brief SPI2 Initialization Function
+  * @brief SPI1 Initialization Function
   * @param None
   * @retval None
   */
-static void MX_SPI2_Init(void)
+static void MX_SPI1_Init(void)
 {
 
-  /* USER CODE BEGIN SPI2_Init 0 */
+  /* USER CODE BEGIN SPI1_Init 0 */
 
-  /* USER CODE END SPI2_Init 0 */
+  /* USER CODE END SPI1_Init 0 */
 
-  /* USER CODE BEGIN SPI2_Init 1 */
+  /* USER CODE BEGIN SPI1_Init 1 */
 
-  /* USER CODE END SPI2_Init 1 */
-  /* SPI2 parameter configuration*/
-  hspi2.Instance = SPI2;
-  hspi2.Init.Mode = SPI_MODE_MASTER;
-  hspi2.Init.Direction = SPI_DIRECTION_2LINES_TXONLY;
-  hspi2.Init.DataSize = SPI_DATASIZE_8BIT;
-  hspi2.Init.CLKPolarity = SPI_POLARITY_HIGH;
-  hspi2.Init.CLKPhase = SPI_PHASE_2EDGE;
-  hspi2.Init.NSS = SPI_NSS_SOFT;
-  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_256;
-  hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
-  hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
-  hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
-  hspi2.Init.CRCPolynomial = 0x0;
-  hspi2.Init.NSSPMode = SPI_NSS_PULSE_ENABLE;
-  hspi2.Init.NSSPolarity = SPI_NSS_POLARITY_LOW;
-  hspi2.Init.FifoThreshold = SPI_FIFO_THRESHOLD_01DATA;
-  hspi2.Init.TxCRCInitializationPattern = SPI_CRC_INITIALIZATION_ALL_ZERO_PATTERN;
-  hspi2.Init.RxCRCInitializationPattern = SPI_CRC_INITIALIZATION_ALL_ZERO_PATTERN;
-  hspi2.Init.MasterSSIdleness = SPI_MASTER_SS_IDLENESS_00CYCLE;
-  hspi2.Init.MasterInterDataIdleness = SPI_MASTER_INTERDATA_IDLENESS_00CYCLE;
-  hspi2.Init.MasterReceiverAutoSusp = SPI_MASTER_RX_AUTOSUSP_DISABLE;
-  hspi2.Init.MasterKeepIOState = SPI_MASTER_KEEP_IO_STATE_DISABLE;
-  hspi2.Init.IOSwap = SPI_IO_SWAP_DISABLE;
-  if (HAL_SPI_Init(&hspi2) != HAL_OK)
+  /* USER CODE END SPI1_Init 1 */
+  /* SPI1 parameter configuration*/
+  hspi1.Instance = SPI1;
+  hspi1.Init.Mode = SPI_MODE_MASTER;
+  hspi1.Init.Direction = SPI_DIRECTION_2LINES_TXONLY;
+  hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
+  hspi1.Init.CLKPolarity = SPI_POLARITY_HIGH;
+  hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
+  hspi1.Init.NSS = SPI_NSS_SOFT;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
+  hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
+  hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
+  hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+  hspi1.Init.CRCPolynomial = 0x0;
+  hspi1.Init.NSSPMode = SPI_NSS_PULSE_ENABLE;
+  hspi1.Init.NSSPolarity = SPI_NSS_POLARITY_LOW;
+  hspi1.Init.FifoThreshold = SPI_FIFO_THRESHOLD_01DATA;
+  hspi1.Init.TxCRCInitializationPattern = SPI_CRC_INITIALIZATION_ALL_ZERO_PATTERN;
+  hspi1.Init.RxCRCInitializationPattern = SPI_CRC_INITIALIZATION_ALL_ZERO_PATTERN;
+  hspi1.Init.MasterSSIdleness = SPI_MASTER_SS_IDLENESS_00CYCLE;
+  hspi1.Init.MasterInterDataIdleness = SPI_MASTER_INTERDATA_IDLENESS_00CYCLE;
+  hspi1.Init.MasterReceiverAutoSusp = SPI_MASTER_RX_AUTOSUSP_DISABLE;
+  hspi1.Init.MasterKeepIOState = SPI_MASTER_KEEP_IO_STATE_DISABLE;
+  hspi1.Init.IOSwap = SPI_IO_SWAP_DISABLE;
+  if (HAL_SPI_Init(&hspi1) != HAL_OK)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN SPI2_Init 2 */
+  /* USER CODE BEGIN SPI1_Init 2 */
 
-  /* USER CODE END SPI2_Init 2 */
+  /* USER CODE END SPI1_Init 2 */
 
 }
 
@@ -385,6 +467,22 @@ static void MX_UART4_Init(void)
 }
 
 /**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Stream0_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream0_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream0_IRQn);
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -392,43 +490,91 @@ static void MX_UART4_Init(void)
 static void MX_GPIO_Init(void)
 {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
-/* USER CODE BEGIN MX_GPIO_Init_1 */
-/* USER CODE END MX_GPIO_Init_1 */
+  /* USER CODE BEGIN MX_GPIO_Init_1 */
+  /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOE_CLK_ENABLE();
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
+  __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(LED_ON_BOARD_GPIO_Port, LED_ON_BOARD_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, SPI2_DC_Pin|SPI2_CS_Pin|SPI2_RESET_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_SET);
 
-  /*Configure GPIO pin : PE3 */
-  GPIO_InitStruct.Pin = GPIO_PIN_3;
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOB, SPI12_DC_Pin|SPI2_CS_Pin|SPI12_RESET_Pin, GPIO_PIN_SET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOD, KEYB_COL_OUT_7_Pin|KEYB_COL_OUT_0_Pin|KEYB_COL_OUT_6_Pin|KEYB_COL_OUT_1_Pin
+                          |KEYB_COL_OUT_5_Pin|KEYB_COL_OUT_2_Pin|KEYB_COL_OUT_4_Pin|KEYB_COL_OUT_3_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin : LED_ON_BOARD_Pin */
+  GPIO_InitStruct.Pin = LED_ON_BOARD_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+  HAL_GPIO_Init(LED_ON_BOARD_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : SPI1_FR_Pin SPI2_FR_Pin */
+  GPIO_InitStruct.Pin = SPI1_FR_Pin|SPI2_FR_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : SPI1_CS_Pin */
+  GPIO_InitStruct.Pin = SPI1_CS_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(SPI1_CS_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : SPI2_BUSY_Pin */
   GPIO_InitStruct.Pin = SPI2_BUSY_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(SPI2_BUSY_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : SPI2_DC_Pin SPI2_CS_Pin SPI2_RESET_Pin */
-  GPIO_InitStruct.Pin = SPI2_DC_Pin|SPI2_CS_Pin|SPI2_RESET_Pin;
+  /*Configure GPIO pins : SPI12_DC_Pin SPI2_CS_Pin SPI12_RESET_Pin */
+  GPIO_InitStruct.Pin = SPI12_DC_Pin|SPI2_CS_Pin|SPI12_RESET_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_MEDIUM;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-/* USER CODE BEGIN MX_GPIO_Init_2 */
-/* USER CODE END MX_GPIO_Init_2 */
+  /*Configure GPIO pins : ROT_ENCOD_CLICK_Pin ROT_ENCOD_LEFT_Pin ROT_ENCOD_RIGHT_Pin */
+  GPIO_InitStruct.Pin = ROT_ENCOD_CLICK_Pin|ROT_ENCOD_LEFT_Pin|ROT_ENCOD_RIGHT_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : KEYB_COL_OUT_7_Pin KEYB_COL_OUT_0_Pin KEYB_COL_OUT_6_Pin KEYB_COL_OUT_1_Pin
+                           KEYB_COL_OUT_5_Pin KEYB_COL_OUT_2_Pin KEYB_COL_OUT_4_Pin KEYB_COL_OUT_3_Pin */
+  GPIO_InitStruct.Pin = KEYB_COL_OUT_7_Pin|KEYB_COL_OUT_0_Pin|KEYB_COL_OUT_6_Pin|KEYB_COL_OUT_1_Pin
+                          |KEYB_COL_OUT_5_Pin|KEYB_COL_OUT_2_Pin|KEYB_COL_OUT_4_Pin|KEYB_COL_OUT_3_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : KEYB_ROW_IN_0_Pin KEYB_ROW_IN_6_Pin KEYB_ROW_IN_1_Pin */
+  GPIO_InitStruct.Pin = KEYB_ROW_IN_0_Pin|KEYB_ROW_IN_6_Pin|KEYB_ROW_IN_1_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : KEYB_ROW_IN_5_Pin KEYB_ROW_IN_2_Pin KEYB_ROW_IN_4_Pin KEYB_ROW_IN_3_Pin */
+  GPIO_InitStruct.Pin = KEYB_ROW_IN_5_Pin|KEYB_ROW_IN_2_Pin|KEYB_ROW_IN_4_Pin|KEYB_ROW_IN_3_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /* USER CODE BEGIN MX_GPIO_Init_2 */
+  /* USER CODE END MX_GPIO_Init_2 */
 }
 
 /* USER CODE BEGIN 4 */
@@ -510,7 +656,9 @@ static void MX_GPIO_Init(void)
     printf("(WeActStudio Code)\r\n");
   }
 
-#else
+#endif
+
+#ifdef __WAVESHARE_EPAPER
 
   int _mainWaveShare(void) {
     printf("EPD_4IN2_V2_test Demo\r\n");
@@ -593,70 +741,72 @@ static void MX_GPIO_Init(void)
        // EPD_4IN2_V2_Display(BlackImage);
       EPD_4IN2_V2_Display(BlackImage);
       DEV_Delay_ms(1000);
-      Paint_Clear(WHITE);
-      EPD_4IN2_V2_Display(BlackImage);
+      //Paint_Clear(WHITE);
+      //EPD_4IN2_V2_Display(BlackImage);
     #endif
 
     #if 1
-
-      /*Paint_NewImage(BlackImage, 200, 50, 0, WHITE);
+      EPD_4IN2_V2_Reset();
+      Paint_NewImage(BlackImage, 200, 50, 0, WHITE);
       PAINT_TIME sPaint_time;
       sPaint_time.Hour = 12;
       sPaint_time.Min = 34;
       sPaint_time.Sec = 56;
-      UBYTE num = 100;
+      UBYTE num = 12;
       Paint_Clear(WHITE);
       for (;;) {
-          sPaint_time.Sec = sPaint_time.Sec + 1;
-       if (sPaint_time.Sec == 60) {
-         sPaint_time.Min = sPaint_time.Min + 1;
-         sPaint_time.Sec = 0;
-         if (sPaint_time.Min == 60) {
-           sPaint_time.Hour =  sPaint_time.Hour + 1;
-           sPaint_time.Min = 0;
-           if (sPaint_time.Hour == 24) {
-             sPaint_time.Hour = 0;
-             sPaint_time.Min = 0;
-             sPaint_time.Sec = 0;
-           }
-         }
-       }
-       //Paint_Clear(WHITE);
-       Paint_DrawTime(20, 10, &sPaint_time, &Font20, WHITE, BLACK);
-       EPD_4IN2_V2_PartialDisplay(BlackImage, 80, 200, 280, 250);
-       //DEV_Delay_ms(10);//Analog clock 1s
-       num = num - 1;
-       if(num == 0) {
+        sPaint_time.Sec = sPaint_time.Sec + 1;
+        if (sPaint_time.Sec == 60) {
+          sPaint_time.Min = sPaint_time.Min + 1;
+          sPaint_time.Sec = 0;
+          if (sPaint_time.Min == 60) {
+            sPaint_time.Hour =  sPaint_time.Hour + 1;
+            sPaint_time.Min = 0;
+            if (sPaint_time.Hour == 24) {
+              sPaint_time.Hour = 0;
+              sPaint_time.Min = 0;
+              sPaint_time.Sec = 0;
+            }
+          }
+        }
+        Paint_Clear(WHITE);
+        Paint_DrawTime(20, 10, &sPaint_time, &Font20, WHITE, BLACK);
+        if (num % 3 == 0) {
+          EPD_4IN2_V2_PartialDisplay(BlackImage, 80, 200, 280, 250);
+        } else {
+          EPD_4IN2_V2_PartialDisplay(BlackImage, 100, 250, 300, 300);
+        }
+        DEV_Delay_ms(1600);//Analog clock 1s
+        num = num - 1;
+        if(num == 0) {
          break;
-       }
-       }*/
-      Paint_Clear(WHITE);
+        }
+      }
+      DEV_Delay_ms(2000);
+
+      // Paint_Clear(WHITE);
 
       UWORD Dx = Font20.Width;
       UWORD Dy = Font20.Height;
       printf("\r\n\r\nPartial refresh on (%i * %i)\r\n", 30 * Dx, Dy);
       int subImageWidth = 10;
       int subImageHeight = 20;
+      printf("  -> display one letter\r\n");
       Paint_NewImage(BlackImage, 10, 20, 0, WHITE);
+
       for (int i = 0; i < 30; i++) {
-        printf("  -> display one letter\r\n");
-        Paint_Clear(WHITE);
-        Paint_DrawChar(0, 0, 'a', &Font20, BLACK, WHITE);
-        int posX = 10 + i * 10;
+        int posX = 10 + i * 20;
         int posY = 100;
+        Paint_Clear(WHITE);
+        Paint_DrawChar(0, 0, 'a' + i, &Font20, BLACK, WHITE);
+        // On deplace la fenetre de 10 en 10.
         EPD_4IN2_V2_PartialDisplay(BlackImage, posX, posY, posX + subImageWidth, posY + subImageHeight);
         //EPD_4IN2_V2_PartialDisplay(BlackImage, 10 + Dx * i, 200, 10 + Dx * (i + 1), 200 + Dy);
       }
       printf("\r\n\r\nPartial refresh END\r\n");
       Paint_Clear(WHITE);
-/*
-      for (int i = 0; i < 30; i++) {
-        Paint_Clear(WHITE);
-        Paint_DrawChar(Dx * i, 0, 'a', &Font20, WHITE, BLACK);
-        EPD_4IN2_V2_PartialDisplay(BlackImage, 10, 200, 10 + Dx * 30, Dy);
-        //EPD_4IN2_V2_PartialDisplay(BlackImage, 10 + Dx * i, 200, 10 + Dx * (i + 1), 200 + Dy);
-      }*/
-   #endif
+
+     #endif
 
 
    #if 1
