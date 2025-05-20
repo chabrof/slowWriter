@@ -14,7 +14,7 @@
 #include "math.h"
 #include "ssd1320_driver.h"
 #include "ssd1320_graphics.h"
-
+#include "keyboard.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -42,16 +42,15 @@ TIM_HandleTypeDef htim8;
 UART_HandleTypeDef huart4;
 
 /* USER CODE BEGIN PV */
-// Frame buffer
-uint8_t frame_buffer_a[SSD1320_BUF_SIZE];
-uint8_t frame_buffer_b[SSD1320_BUF_SIZE];
 
-uint8_t* active_buffer = frame_buffer_a;
-uint8_t* draw_buffer   = frame_buffer_b;
 
 uint8_t frame_ready = 0;
 // Définition du délai pour l'anti-rebond en millisecondes
-#define DEBOUNCE_DELAY 50
+#define DEBOUNCE_DELAY 10
+
+
+//uint32_t rot_encod_right_lastTick = 0;
+
 
 // Variables pour le suivi du bouton
 uint32_t lastDebounceTime = 0;
@@ -115,26 +114,26 @@ PUTCHAR_PROTOTYPE
 
 void App_DrawUI(void)
 {
-  ClearBuffer(draw_buffer);
+  ClearBuffers();
   //DrawText4BPP(draw_buffer, "aac", 10, 5, 0xF);
   //DrawRect4BPP(draw_buffer, 5, 20, 100, 30, 0x7, 0);
   //DrawLine4BPP(draw_buffer, 0, 0, 127, 63, 0xC);
   // OLED_Clear(5,20,320,132,0xff);
-  memset(draw_buffer, 0x00, SSD1320_BUF_SIZE);
-  DrawRect4BPP(draw_buffer, 0, 0, 160, 132, 0x8, 0);
-  DrawLine4BPP(draw_buffer, 0, 0, 70, 131, 0x7);
-  DrawLine4BPP(draw_buffer, 0, 0, 40, 131, 0xf);
-  DrawLine4BPP(draw_buffer, 70, 131, 159, 80, 0x9);
+
+  DrawRect4BPP(0, 0, 160, 132, 0x8, 0);
+  DrawLine4BPP(0, 0, 70, 131, 0x7);
+  DrawLine4BPP(0, 0, 40, 131, 0xf);
+  DrawLine4BPP(70, 131, 290, 40, 0x9);
+  DrawRect4BPP(260, 40, 26, 30, 0x8, 0);
+
+  DrawText4BPP("SSD1320z2", 180, 20, 0xc);
   /*DrawLine4BPP(draw_buffer, 100, 100, 200, 100, 0xff);
   DrawLine4BPP(draw_buffer, 100, 100, 200, 131, 0xff);
   DrawLine4BPP(draw_buffer, 200, 100, 200, 131, 0xff);*/
   printf("Buffer size %i \r\n", SSD1320_BUF_SIZE);
 
   SSD1320_SetAddress(0, 79, 0, 131);
-  SSD1320_SendBuffer(draw_buffer, SSD1320_BUF_SIZE);
-
-
-
+  SSD1320_SendBuffers();
 
   //SSD1320_SendDataRight(draw_buffer, SSD1320_BUF_SIZE);
   //SSD1320_SwapBuffers();
@@ -237,6 +236,17 @@ int main(void)
     //HAL_GPIO_TogglePin (GPIOE, LED_ON_BOARD_Pin);
     //HAL_Delay (1000);
     // </blink>
+    static uint32_t last = 0;
+    if (HAL_GetTick() - last > 10) {
+      last = HAL_GetTick();
+      Keypad_Update();
+
+     int8_t c;
+      while (GetCodeFromBuffer(&c)) {
+        printf("%i\r\n", c);  // Ou traiter autrement
+      }
+    }
+
   }
   /* USER CODE END 3 */
 }
@@ -323,7 +333,7 @@ static void MX_SPI1_Init(void)
   hspi1.Init.CLKPolarity = SPI_POLARITY_HIGH;
   hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_256;
   hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -546,9 +556,15 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_MEDIUM;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : ROT_ENCOD_CLICK_Pin ROT_ENCOD_LEFT_Pin ROT_ENCOD_RIGHT_Pin */
-  GPIO_InitStruct.Pin = ROT_ENCOD_CLICK_Pin|ROT_ENCOD_LEFT_Pin|ROT_ENCOD_RIGHT_Pin;
+  /*Configure GPIO pin : ROT_ENCOD_CLICK_Pin */
+  GPIO_InitStruct.Pin = ROT_ENCOD_CLICK_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(ROT_ENCOD_CLICK_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : ROT_ENCOD_LEFT_Pin ROT_ENCOD_RIGHT_Pin */
+  GPIO_InitStruct.Pin = ROT_ENCOD_LEFT_Pin|ROT_ENCOD_RIGHT_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
@@ -561,17 +577,23 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : KEYB_ROW_IN_0_Pin KEYB_ROW_IN_6_Pin KEYB_ROW_IN_1_Pin */
-  GPIO_InitStruct.Pin = KEYB_ROW_IN_0_Pin|KEYB_ROW_IN_6_Pin|KEYB_ROW_IN_1_Pin;
+  /*Configure GPIO pins : KEYB_ROW_IN_7_Pin KEYB_ROW_IN_0_Pin KEYB_ROW_IN_6_NOT_WORKING_Pin KEYB_ROW_IN_1_NOTWORKING_Pin */
+  GPIO_InitStruct.Pin = KEYB_ROW_IN_7_Pin|KEYB_ROW_IN_0_Pin|KEYB_ROW_IN_6_NOT_WORKING_Pin|KEYB_ROW_IN_1_NOTWORKING_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : KEYB_ROW_IN_5_Pin KEYB_ROW_IN_2_Pin KEYB_ROW_IN_4_Pin KEYB_ROW_IN_3_Pin */
-  GPIO_InitStruct.Pin = KEYB_ROW_IN_5_Pin|KEYB_ROW_IN_2_Pin|KEYB_ROW_IN_4_Pin|KEYB_ROW_IN_3_Pin;
+  /*Configure GPIO pins : KEYB_ROW_IN_5_Pin KEYB_ROW_IN_2_Pin KEYB_ROW_IN_4_Pin KEYB_ROW_IN_3_Pin
+                           KEYB_ROW_IN_1_Pin KEYB_ROW_IN_6_Pin */
+  GPIO_InitStruct.Pin = KEYB_ROW_IN_5_Pin|KEYB_ROW_IN_2_Pin|KEYB_ROW_IN_4_Pin|KEYB_ROW_IN_3_Pin
+                          |KEYB_ROW_IN_1_Pin|KEYB_ROW_IN_6_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(ROT_ENCOD_LEFT_EXTI_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(ROT_ENCOD_LEFT_EXTI_IRQn);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
   /* USER CODE END MX_GPIO_Init_2 */

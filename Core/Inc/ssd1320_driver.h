@@ -1,9 +1,14 @@
 #ifndef INC_SSD1320_DRIVER_H_
 #define INC_SSD1320_DRIVER_H_
 
-
 #include <stdint.h>
 #include <stddef.h>
+
+
+#define SSD1320_HALF_WIDTH  160 // for left and right screens
+#define SSD1320_HALF_HEIGHT 132
+#define SSD1320_BUF_SIZE  (SSD1320_HALF_WIDTH * SSD1320_HALF_HEIGHT / 2) // 4bpp (1 octet = 2 dots)
+
 
 #define SSD1320_CS1_LOW()     HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_RESET)
 #define SSD1320_CS1_HIGH()    HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_SET)
@@ -19,11 +24,16 @@
 #define OLED_DATA 1 //DATA
 
 void SSD1320_Init(void);
-void SSD1320_SendCommand(uint8_t cmd);
+void SSD1320_SendCommandLeft(uint8_t cmd);
+void SSD1320_SendCommandRight(uint8_t cmd);
+void SSD1320_SendCommandBoth(uint8_t cmd);
 void SSD1320_SendData(uint8_t* data, size_t len);
-void SSD1320_SendBuffer(uint8_t* buffer, size_t len);
+void SSD1320_SendBuffers();
 void OLED_Clear(uint16_t x1,uint16_t y1,uint16_t x2,uint16_t y2,uint8_t color);
 void SSD1320_SetAddress(uint16_t x1,uint16_t x2,uint16_t y1,uint16_t y2);
 
+// Frame buffer
+extern uint8_t* ssd1320_left_buffer;
+extern uint8_t* ssd1320_right_buffer;
 
 #endif /* INC_SSD1320_DRIVER_H_ */

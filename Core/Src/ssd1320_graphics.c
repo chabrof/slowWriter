@@ -1,81 +1,93 @@
+#include "ssd1320_driver.h"
 #include "ssd1320_graphics.h"
 #include <string.h>
 #include <stdlib.h>
+#include "font8x8_basic.h"
 
-// ===== POLICE BASIQUE 6x8 (ASCII 32–127) =====
-const uint8_t font6x8[][6] = {
-    [32] = {0x00,0x00,0x00,0x00,0x00,0x00}, // Espace
-    [65] = {0x7C,0x12,0x11,0x12,0x7C,0x00}, // A
-    [66] = {0x7F,0x49,0x49,0x49,0x36,0x00}, // B
-    [67] = {0x3E,0x41,0x41,0x41,0x22,0x00}, // C
-    // Ajoute les caractères utiles
-};
-
-// ===== GRAPHISME DE BASE =====
-void SetPixel4BPP(uint8_t* buffer, uint16_t x, uint16_t y, uint8_t gray)
+void SetPixel4BPP(uint16_t x, uint16_t y, uint8_t gray)
 {
-    if (x >= SSD1320_WIDTH || y >= SSD1320_HEIGHT)
-        return;
+  if (x >= SSD1320_WIDTH || y >= SSD1320_HEIGHT)
+    return;
 
-    uint32_t index = (y * SSD1320_WIDTH + x) / 2;
+  uint8_t *buf;
+  uint16_t local_x;
 
-    if (x % 2 == 0)
-        buffer[index] = (buffer[index] & 0x0F) | ((gray & 0x0F) << 4);
-    else
-        buffer[index] = (buffer[index] & 0xF0) | (gray & 0x0F);
+  // Choisir le buffer selon la moitié
+  if (x < SSD1320_HALF_WIDTH) {
+    buf = ssd1320_left_buffer;
+    local_x = x;
+  } else {
+    buf = ssd1320_right_buffer;
+    local_x = x - 160;
+  }
+
+  // Calcul de l'adresse dans le buffer (2 pixels par octet, 4bpp)
+  uint32_t byte_index = y * 80 + (local_x / 2);
+  uint8_t pixel = buf[byte_index];
+
+  if (local_x % 2 == 0) {
+    // Pixel pair : bits hauts
+    pixel = (pixel & 0x0F) | (gray << 4);
+  } else {
+    // Pixel impair : bits bas
+    pixel = (pixel & 0xF0) | (gray & 0x0F);
+  }
+
+  buf[byte_index] = pixel;
 }
 
-void DrawChar4BPP(uint8_t* buffer, char c, uint16_t x, uint16_t y, uint8_t color)
+void DrawChar4BPP(char c, uint16_t x, uint16_t y, uint8_t color)
 {
-    if (c < 32 || c > 127) return;
-    const uint8_t* chr = font6x8[(uint8_t)c];
+  if (c < 0x20 || c > 0x7F) return; // caractères imprimables seulement
 
-    for (uint8_t col = 0; col < 6; col++) {
-        uint8_t line = chr[col];
-        for (uint8_t row = 0; row < 8; row++) {
-            if (line & (1 << row)) {
-                SetPixel4BPP(buffer, x + col, y + row, color);
-            }
-        }
+  const char *glyph = font8x8_basic[(uint8_t)c];
+
+  for (uint8_t row = 0; row < 8; row++) {
+    uint8_t bits = glyph[row];
+    for (uint8_t col = 0; col < 8; col++) {
+      if (bits & (1 << col)) {
+          SetPixel4BPP(x + col, y + row, color);
+      }
     }
+  }
 }
 
-void DrawText4BPP(uint8_t* buffer, const char* text, uint16_t x, uint16_t y, uint8_t color)
+void DrawText4BPP(const char* text, uint16_t x, uint16_t y, uint8_t color)
 {
-    while (*text) {
-        DrawChar4BPP(buffer, *text, x, y, color);
-        x += 6;
-        text++;
+  while (*text) {
+    DrawChar4BPP(*text, x, y, color);
+    x += 8;
+    text++;
+  }
+}
+
+void DrawRect4BPP(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint8_t color, uint8_t filled)
+{
+  for (uint16_t i = 0; i < h; i++) {
+    for (uint16_t j = 0; j < w; j++) {
+      if (filled || i == 0 || i == h-1 || j == 0 || j == w-1) {
+        SetPixel4BPP(x + j, y + i, color);
+      }
     }
+  }
 }
 
-void DrawRect4BPP(uint8_t* buffer, uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint8_t color, uint8_t filled)
+void DrawLine4BPP(int x0, int y0, int x1, int y1, uint8_t color)
 {
-    for (uint16_t i = 0; i < h; i++) {
-        for (uint16_t j = 0; j < w; j++) {
-            if (filled || i == 0 || i == h-1 || j == 0 || j == w-1) {
-                SetPixel4BPP(buffer, x + j, y + i, color);
-            }
-        }
-    }
+  int dx = abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
+  int dy = -abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
+  int err = dx + dy;
+
+  while (1) {
+    SetPixel4BPP(x0, y0, color);
+    if (x0 == x1 && y0 == y1) break;
+    int e2 = 2 * err;
+    if (e2 >= dy) { err += dy; x0 += sx; }
+    if (e2 <= dx) { err += dx; y0 += sy; }
+  }
 }
 
-void DrawLine4BPP(uint8_t* buffer, int x0, int y0, int x1, int y1, uint8_t color)
-{
-    int dx = abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
-    int dy = -abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
-    int err = dx + dy;
-
-    while (1) {
-        SetPixel4BPP(buffer, x0, y0, color);
-        if (x0 == x1 && y0 == y1) break;
-        int e2 = 2 * err;
-        if (e2 >= dy) { err += dy; x0 += sx; }
-        if (e2 <= dx) { err += dx; y0 += sy; }
-    }
-}
-
-void ClearBuffer(uint8_t* buffer)
-{
-    memset(buffer, 0x00, SSD1320_BUF_SIZE);
+void ClearBuffers() {
+  memset(ssd1320_left_buffer, 0x00, SSD1320_BUF_SIZE);
+  memset(ssd1320_right_buffer, 0x00, SSD1320_BUF_SIZE);
 }

@@ -1,7 +1,14 @@
 #include "ssd1320_driver.h"
 #include "main.h" // pour hspi1
+#include "stdio.h"
 
 extern SPI_HandleTypeDef hspi1;
+volatile uint8_t dma_buffer_state = 0;
+
+uint8_t frame_buffer_a[SSD1320_BUF_SIZE];
+uint8_t frame_buffer_b[SSD1320_BUF_SIZE];
+uint8_t *ssd1320_left_buffer = NULL;
+uint8_t *ssd1320_right_buffer = NULL;
 
 void SSD1320_Reset(void)
 {
@@ -18,7 +25,7 @@ void SSD1320_SendCommandLeft(uint8_t cmd)
     HAL_SPI_Transmit(&hspi1, &cmd, 1, HAL_MAX_DELAY);
     SSD1320_CS1_HIGH();
 }
-
+/*
 void SSD1320_SendDataLeft(uint8_t* data, size_t len)
 {
     SSD1320_DC_DATA();
@@ -26,9 +33,9 @@ void SSD1320_SendDataLeft(uint8_t* data, size_t len)
     HAL_SPI_Transmit_DMA(&hspi1, data, len);
     // HAL_SPI_Transmit(&hspi1, data, len, HAL_MAX_DELAY);
     //SSD1320_CS1_HIGH();
-}
+}*/
 
-void SSD1320_SendCommandRight(uint16_t cmd)
+void SSD1320_SendCommandRight(uint8_t cmd)
 {
     SSD1320_DC_CMD();
     SSD1320_CS2_LOW();
@@ -36,6 +43,7 @@ void SSD1320_SendCommandRight(uint16_t cmd)
     SSD1320_CS2_HIGH();
 }
 
+/*
 void SSD1320_SendDataRight(uint8_t* data, size_t len)
 {
     SSD1320_DC_DATA();
@@ -43,7 +51,7 @@ void SSD1320_SendDataRight(uint8_t* data, size_t len)
     HAL_SPI_Transmit_DMA(&hspi1, data, len);
     //HAL_SPI_Transmit(&hspi1, data, len, HAL_MAX_DELAY);
     //SSD1320_CS2_HIGH();
-}
+}*/
 
 void SSD1320_SendCommandBoth(uint8_t cmd) {
   SSD1320_DC_CMD();
@@ -53,8 +61,8 @@ void SSD1320_SendCommandBoth(uint8_t cmd) {
   SSD1320_CS1_HIGH();
   SSD1320_CS2_HIGH();
 }
-
-void SSD1320_SendDataBoth(uint8_t* data, size_t len)
+/*
+void S1320_SendDataBoth(uint8_t* data, size_t len)
 {
     SSD1320_DC_DATA();
     SSD1320_CS1_LOW();
@@ -64,14 +72,36 @@ void SSD1320_SendDataBoth(uint8_t* data, size_t len)
     //SSD1320_CS1_HIGH();
     //SSD1320_CS2_HIGH();
 }
-
+*/
 
 // End of DMA transfert cbk :
-void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi)
-{
+void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi) {
+  printf("DMA cbk. (%i)\r\n", dma_buffer_state);
   if (hspi->Instance == SPI1) {
-    SSD1320_CS1_HIGH();
-    SSD1320_CS2_HIGH();
+    if (dma_buffer_state == 0) {
+      SSD1320_CS1_HIGH();
+      SSD1320_CS2_HIGH();
+      return;
+    }
+    if (dma_buffer_state == 1) {
+      dma_buffer_state = 2;
+      SSD1320_CS1_HIGH();
+      printf("Transmission droite %i \r\n", SSD1320_BUF_SIZE);
+      //HAL_Delay (500);
+      SSD1320_DC_DATA();
+      SSD1320_CS2_LOW();
+      if (HAL_SPI_GetState(&hspi1) != HAL_SPI_STATE_READY) {
+        printf("** ERROR ** - SPI Non Pret !!  \r\n");
+      }
+      HAL_SPI_Transmit_DMA(&hspi1, ssd1320_right_buffer, SSD1320_BUF_SIZE);
+      return;
+    }
+    if (dma_buffer_state == 2) {
+      dma_buffer_state = 0;
+      SSD1320_CS1_HIGH();
+      SSD1320_CS2_HIGH();
+      return;
+    }
   }
 }
 
@@ -157,46 +187,21 @@ void SSD1320_SetAddress(uint16_t x1,uint16_t x2,uint16_t y1,uint16_t y2)
   }*/
 }
 
-void SSD1320_SendBuffer(uint8_t* buffer, size_t len)
+void SSD1320_SendBuffers()
 {
-  // Positionne la fenêtre d’écriture sur toute la surface
-  //SSD1320_SetColumnAddressLeft(0x00, 0x50); // 160 px = 80 octets (en 4 bpp)
-  //SSD1320_SetRowAddressLeft(0x00, 0x83);    // 132 lignes
-  //SSD1320_SetAddress(0,319,0,131);
-  SSD1320_SendDataBoth(buffer, len);
-
-  // Positionne la fenêtre d’écriture sur toute la surface
-  //SSD1320_SetColumnAddressRight(0x00, 0x50); // 160 px = 80 octets (en 4 bpp)
-  //SSD1320_SetRowAddressRight(0x00, 0x83);    // 132 lignes
-  //SSD1320_SetAddress(160,319,0,131);
+  dma_buffer_state = 1;
+  printf("Transmission gauche %i \r\n", SSD1320_BUF_SIZE);
+  SSD1320_DC_DATA();
+  SSD1320_CS1_LOW();
+  HAL_SPI_Transmit_DMA(&hspi1, ssd1320_left_buffer, SSD1320_BUF_SIZE);
 }
 
-
-
-/*
 void SSD1320_Init(void)
 {
-    SSD1320_Reset();
+  // Buffers creation
+  ssd1320_left_buffer = frame_buffer_a;
+  ssd1320_right_buffer = frame_buffer_b;
 
-    SSD1320_SendCommand(0xAE); // Display OFF
-    SSD1320_SendCommand(0x15); SSD1320_SendCommand(0x00); SSD1320_SendCommand(0x3F); // Columns
-    SSD1320_SendCommand(0x75); SSD1320_SendCommand(0x00); SSD1320_SendCommand(0x3F); // Rows
-    SSD1320_SendCommand(0xA0); SSD1320_SendCommand(0x14); // Remap
-    SSD1320_SendCommand(0xA1); SSD1320_SendCommand(0x00); // Start Line
-    SSD1320_SendCommand(0xA2); SSD1320_SendCommand(0x00); // Offset
-    SSD1320_SendCommand(0xA4); // Display mode
-    SSD1320_SendCommand(0xAB); SSD1320_SendCommand(0x01); // VDD internal
-    SSD1320_SendCommand(0x81); SSD1320_SendCommand(0x53); // Contrast
-    SSD1320_SendCommand(0xB1); SSD1320_SendCommand(0x51); // Phase length
-    SSD1320_SendCommand(0xB3); SSD1320_SendCommand(0x01); // Clock
-    SSD1320_SendCommand(0xB9); // Default grayscale
-    SSD1320_SendCommand(0xBC); SSD1320_SendCommand(0x08); // Precharge voltage
-    SSD1320_SendCommand(0xBE); SSD1320_SendCommand(0x07); // VCOMH
-    SSD1320_SendCommand(0xAF); // Display ON
-}*/
-
-void SSD1320_Init(void)
-{
   SSD1320_Reset();
 
   SSD1320_SendCommandBoth(0xae);//Display OFF
@@ -239,159 +244,6 @@ void SSD1320_Init(void)
   SSD1320_SendCommandBoth(0x80);
 
 
-
   SSD1320_SendCommandBoth(0xaf);//Display on
 }
 
-/*
-void SSD1320_Init(void)
-{
-  // RESET matériel
-  SSD1320_Reset();
-
-  SSD1320_SendCommandLeft(0xAE); // Display OFF
-
-  SSD1320_SendCommandLeft(0xFD); // Set Command Lock
-  SSD1320_SendCommandLeft(0x12);
-
-  SSD1320_SendCommandLeft(0x20); // Set Memory Addressing Mode
-  SSD1320_SendCommandLeft(0x00); // Horizontal Addressing Mode
-
-  SSD1320_SendCommandLeft(0x25); // Portrait Addressing Mode
-  SSD1320_SendCommandLeft(0x00); // Normal
-
-  SSD1320_SendCommandLeft(0x81); // Contrast Control
-  SSD1320_SendCommandLeft(0x90);
-
-  SSD1320_SendCommandLeft(0xA0); // SEG Remap
-  SSD1320_SendCommandLeft(0x00); // false
-
-  SSD1320_SendCommandLeft(0xA1);
-  SSD1320_SendCommandLeft(0x02);
-
-  SSD1320_SendCommandLeft(0xA2); // Display Start Line
-  SSD1320_SendCommandLeft(0x00);
-
-  SSD1320_SendCommandLeft(0xA4); // Resume to RAM content
-  SSD1320_SendCommandLeft(0xA6); // Normal Display (not inverted)
-
-  SSD1320_SendCommandLeft(0xA8); // MUX Ratio
-  SSD1320_SendCommandLeft(0x83); // 1/132 duty
-
-  SSD1320_SendCommandLeft(0xAD); // Internal/External IREF
-  SSD1320_SendCommandLeft(0x10); // External
-
-  SSD1320_SendCommandLeft(0xBC); // Pre-charge voltage
-  SSD1320_SendCommandLeft(0x1E);
-
-  SSD1320_SendCommandLeft(0xBF); // Linear LUT
-
-  SSD1320_SendCommandLeft(0xC8); // COM Output Scan
-  //SSD1320_SendCommandLeft(0x01);
-
-  //SSD1320_SendCommandLeft(0xC0);
-  //SSD1320_SendCommandLeft(0x02);
-
-  SSD1320_SendCommandLeft(0xD3); // Display Offset
-  SSD1320_SendCommandLeft(0x0E);
-
-  SSD1320_SendCommandLeft(0x92);
-  SSD1320_SendCommandLeft(0x02);
-
-  SSD1320_SendCommandLeft(0xD5); // Clock Divide / Oscillator Freq
-  SSD1320_SendCommandLeft(0xC2); // Hz
-
-  SSD1320_SendCommandLeft(0xD9); // Pre-charge Period
-  SSD1320_SendCommandLeft(0x72);
-
-  SSD1320_SendCommandLeft(0xDA); // SEG Pins Hardware Config
-  SSD1320_SendCommandLeft(0x32);
-
-  SSD1320_SendCommandLeft(0xBD); // VP (Voltage Level)
-  SSD1320_SendCommandLeft(0x03);
-
-  SSD1320_SendCommandLeft(0xDB); // VCOMH
-  SSD1320_SendCommandLeft(0x35);
-
-  // Effacer tout l'écran avant l’allumage
-  //OLED_Clear(0, 0, 320, 132, 0x00); // à adapter selon ta lib graphique
-
-  SSD1320_SendCommandLeft(0xAF); // Display ON
-
-
-  SSD1320_SendCommandRight(0xAE); // Display OFF
-
-  SSD1320_SendCommandRight(0xFD); // Set Command Lock
-  SSD1320_SendCommandRight(0x12);
-
-  SSD1320_SendCommandRight(0x20); // Set Memory Addressing Mode
-  SSD1320_SendCommandRight(0x00); // Horizontal Addressing Mode
-
-  SSD1320_SendCommandRight(0x25); // Portrait Addressing Mode
-  SSD1320_SendCommandRight(0x00); // Normal
-
-  SSD1320_SendCommandRight(0x81); // Contrast Control
-  SSD1320_SendCommandRight(0x90);
-
-  SSD1320_SendCommandRight(0xA0); // SEG Remap
-  SSD1320_SendCommandRight(0x01); // true
-
-  SSD1320_SendCommandRight(0xA1);
-  SSD1320_SendCommandRight(0x02);
-
-  SSD1320_SendCommandRight(0xA2); // Display Start Line
-  SSD1320_SendCommandRight(0x00);
-
-  SSD1320_SendCommandRight(0xA4); // Resume to RAM content
-  SSD1320_SendCommandRight(0xA6); // Normal Display (not inverted)
-
-  SSD1320_SendCommandRight(0xA8); // MUX Ratio
-  SSD1320_SendCommandRight(0x83); // 1/132 duty
-
-  SSD1320_SendCommandRight(0xAD); // Internal/External IREF
-  SSD1320_SendCommandRight(0x10); // External
-
-  SSD1320_SendCommandRight(0xBC); // Pre-charge voltage
-  SSD1320_SendCommandRight(0x1E);
-
-  SSD1320_SendCommandRight(0xBF); // Linear LUT
-
-  SSD1320_SendCommandRight(0xC8); // COM Output Scan
-  //SSD1320_SendCommandRight(0x01);
-
-  SSD1320_SendCommandRight(0xC0);
-  //SSD1320_SendCommandRight(0x02);
-
-  SSD1320_SendCommandRight(0xD3); // Display Offset
-  //SSD1320_SendCommandRight(0x92);
-  SSD1320_SendCommandRight(0x92);
-
-
-  SSD1320_SendCommandRight(0x75); // Row Address
-  SSD1320_SendCommandRight(0x00);
-  SSD1320_SendCommandRight(0x83); // Jusqu’à ligne 131 (132 lignes)
-
-
-  SSD1320_SendCommandRight(0x92);
-  SSD1320_SendCommandRight(0x02);
-
-  SSD1320_SendCommandRight(0xD5); // Clock Divide / Oscillator Freq
-  SSD1320_SendCommandRight(0xA2); // Hz
-
-  SSD1320_SendCommandRight(0xD9); // Pre-charge Period
-  SSD1320_SendCommandRight(0x72);
-
-  SSD1320_SendCommandRight(0xDA); // SEG Pins Hardware Config
-  SSD1320_SendCommandRight(0x32);
-
-  SSD1320_SendCommandRight(0xBD); // VP (Voltage Level)
-  SSD1320_SendCommandRight(0x03);
-
-  SSD1320_SendCommandRight(0xDB); // VCOMH
-  SSD1320_SendCommandRight(0x30);
-
-  // Effacer tout l'écran avant l’allumage
-  //OLED_Clear(0, 0, 320, 132, 0x00); // à adapter selon ta lib graphique
-
-  SSD1320_SendCommandRight(0xAF); // Display ON
-}*/
