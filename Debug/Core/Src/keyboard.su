@@ -1,2 +1,0 @@
-../Core/Src/keyboard.c:40:6:RawScanKeypad	24	static
-../Core/Src/keyboard.c:68:13:getKeysState	112	static

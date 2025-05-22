@@ -1,6 +1,0 @@
-../Core/Src/ssd1320_graphics.c:7:6:SetPixel4BPP	32	static
-../Core/Src/ssd1320_graphics.c:39:6:DrawChar4BPP	40	static
-../Core/Src/ssd1320_graphics.c:55:6:DrawText4BPP	24	static
-../Core/Src/ssd1320_graphics.c:64:6:DrawRect4BPP	32	static
-../Core/Src/ssd1320_graphics.c:75:6:DrawLine4BPP	48	static
-../Core/Src/ssd1320_graphics.c:90:6:ClearBuffers	8	static
