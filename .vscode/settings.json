@@ -1,6 +1,10 @@
 {
     "files.associations": {
         "math.h": "c",
-        "stdint.h": "c"
+        "stdint.h": "c",
+        "string.h": "c",
+        "ssd1320_driver.h": "c",
+        "stm32h723xx.h": "c",
+        "compare": "c"
     }
 }

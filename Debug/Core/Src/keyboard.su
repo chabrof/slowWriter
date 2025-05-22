@@ -1,4 +1,2 @@
-../Core/Src/keyboard.c:38:6:AddToInputBuffer	24	static
-../Core/Src/keyboard.c:46:5:GetCodeFromBuffer	16	static
-../Core/Src/keyboard.c:76:6:RawScanKeypad	24	static
-../Core/Src/keyboard.c:104:6:Keypad_Update	80	static
+../Core/Src/keyboard.c:40:6:RawScanKeypad	24	static
+../Core/Src/keyboard.c:68:13:getKeysState	112	static

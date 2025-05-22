@@ -1,27 +1,5 @@
-#include "main.h"
-
+#include "keyboard.h"
 #include <stdio.h>
-
-#define KEYPAD_ROWS 8
-#define KEYPAD_COLS 8
-#define INPUT_BUFFER_SIZE 64
-
-typedef struct {
-  uint8_t stable;
-  uint8_t previous;
-  uint8_t pressed; // front montant
-} Key_t;
-
-typedef struct {
-  uint16_t gpio;
-  GPIO_TypeDef * port;
-} RowColGpio_t;
-
-
-Key_t keypad[KEYPAD_ROWS][KEYPAD_COLS];
-char input_buffer[INPUT_BUFFER_SIZE];
-uint8_t input_head = 0;
-uint8_t input_tail = 0;
 
 const uint8_t keymap[KEYPAD_ROWS][KEYPAD_COLS] = {
   {13, 12, 11, 10, 9, 8, 7, 6 },
@@ -34,21 +12,6 @@ const uint8_t keymap[KEYPAD_ROWS][KEYPAD_COLS] = {
   {57, 56, 55, 54, 53, 61, 62, 63 }
 };
 
-
-void AddToInputBuffer(char c) {
-  uint8_t next = (input_head + 1) % INPUT_BUFFER_SIZE;
-  if (next != input_tail) {  // évite d’écraser
-    input_buffer[input_head] = c;
-    input_head = next;
-  }
-}
-
-int GetCodeFromBuffer(char *c) {
-  if (input_tail == input_head) return 0;  // Vide
-  *c = input_buffer[input_tail];
-  input_tail = (input_tail + 1) % INPUT_BUFFER_SIZE;
-  return 1;
-}
 
 const RowColGpio_t cols[] = {
  { KEYB_COL_OUT_0_Pin, KEYB_COL_OUT_0_GPIO_Port },
@@ -72,6 +35,7 @@ const RowColGpio_t rows[] = {
  { KEYB_ROW_IN_7_Pin, KEYB_ROW_IN_7_GPIO_Port },
 };
 
+Key_t keypad[KEYPAD_ROWS][KEYPAD_COLS];
 
 void RawScanKeypad(uint8_t raw[KEYPAD_ROWS][KEYPAD_COLS]) {
   for (uint8_t row = 0; row < KEYPAD_ROWS; row++)
@@ -101,27 +65,35 @@ void RawScanKeypad(uint8_t raw[KEYPAD_ROWS][KEYPAD_COLS]) {
   }
 }
 
-void Keypad_Update(void) {
+KeysState_t getKeysState(void) {
   uint8_t raw[KEYPAD_ROWS][KEYPAD_COLS];
   RawScanKeypad(raw);
+  KeysState_t keysState = {.alreadyNb = 0, .newNb = 0};
 
   for (uint8_t rowIdx = 0; rowIdx < KEYPAD_ROWS; rowIdx++) {
     for (uint8_t colIdx = 0; colIdx < KEYPAD_COLS; colIdx++) {
-      keypad[rowIdx][colIdx].pressed = 0;
-
+      Key_t keypadLoc = {.prevPressed = 0, .pressed = 0}; 
       uint8_t val = raw[rowIdx][colIdx];
-      if (val == keypad[rowIdx][colIdx].previous) {
-        if (val != keypad[rowIdx][colIdx].stable) {
-          keypad[rowIdx][colIdx].stable = val;
 
-          if (val == 1) {
-            keypad[rowIdx][colIdx].pressed = 1;
-            char c = keymap[rowIdx][colIdx];
-            AddToInputBuffer(c);
+      if (val == 1) {
+        // Pressed !
+        uint8_t code = keymap[rowIdx][colIdx];
+
+        if (keypad[rowIdx][colIdx].prevPressed == 1) {
+          // also Pressed before !
+          if (keysState.alreadyNb < KEYS_STATE_BUFFER_SIZE) {
+            keysState.already[keysState.alreadyNb++] = code;
+          }
+        } else {
+          if (keysState.newNb < KEYS_STATE_BUFFER_SIZE) {
+            keysState.new[keysState.newNb++] = code;
           }
         }
       }
-      keypad[rowIdx][colIdx].previous = val;
+      keypadLoc.pressed = val;
+      keypadLoc.prevPressed = val;
+      keypad[rowIdx][colIdx] = keypadLoc;
     }
   }
+  return keysState;
 }

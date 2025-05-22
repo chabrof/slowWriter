@@ -1,13 +1,13 @@
 /* USER CODE BEGIN Header */
-//#define __WE_ACT_STUDIO_VERSION
-//#define __WAVESHARE_EPAPER
+// #define __WE_ACT_STUDIO_VERSION
+// #define __WAVESHARE_EPAPER
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "stm32h7xx_hal.h"
 #include <string.h>
 #include "stdint.h"
 #include "stdio.h"
@@ -15,6 +15,10 @@
 #include "ssd1320_driver.h"
 #include "ssd1320_graphics.h"
 #include "keyboard.h"
+#include "rotary_encoder.h"
+#include <stm32h7xx_hal_pwr_ex.h>
+#include <stm32h723xx.h>
+#include "test.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -42,23 +46,12 @@ TIM_HandleTypeDef htim8;
 UART_HandleTypeDef huart4;
 
 /* USER CODE BEGIN PV */
-
-
 uint8_t frame_ready = 0;
-// Définition du délai pour l'anti-rebond en millisecondes
-#define DEBOUNCE_DELAY 10
 
-
-//uint32_t rot_encod_right_lastTick = 0;
-
-
-// Variables pour le suivi du bouton
-uint32_t lastDebounceTime = 0;
-GPIO_PinState lastButtonState = GPIO_PIN_SET;
-GPIO_PinState buttonState = GPIO_PIN_SET;
+// uint32_t rot_encod_right_lastTick = 0;
 
 #ifdef __WE_ACT_STUDIO_VERSION
-  uint8_t image_bw[EPD_W_BUFF_SIZE * EPD_H];
+uint8_t image_bw[EPD_W_BUFF_SIZE * EPD_H];
 #endif
 /* USER CODE END PV */
 
@@ -72,10 +65,10 @@ static void MX_UART4_Init(void);
 static void MX_SPI1_Init(void);
 /* USER CODE BEGIN PFP */
 #ifdef __WE_ACT_STUDIO_VERSION
-  int _mainWeActStudio(void);
+int _mainWeActStudio(void);
 #endif
 #ifdef __WAVESHARE_EPAPER
-  int _mainWaveShare(void);
+int _mainWaveShare(void);
 #endif
 
 /*void SSD1320_SwapBuffers(void) {
@@ -100,9 +93,9 @@ static void MX_SPI1_Init(void);
 
 // (Chabe) USART printf configuration :
 #ifdef __GNUC__
-  #define PUTCHAR_PROTOTYPE int __io_putchar(int ch)
+#define PUTCHAR_PROTOTYPE int __io_putchar(int ch)
 #else
-  #define PUTCHAR_PROTOTYPE int fputc(int ch, FILE *f)
+#define PUTCHAR_PROTOTYPE int fputc(int ch, FILE *f)
 #endif /* __GNUC__ */
 
 PUTCHAR_PROTOTYPE
@@ -111,14 +104,13 @@ PUTCHAR_PROTOTYPE
   return ch;
 }
 
-
 void App_DrawUI(void)
 {
   ClearBuffers();
-  //DrawText4BPP(draw_buffer, "aac", 10, 5, 0xF);
-  //DrawRect4BPP(draw_buffer, 5, 20, 100, 30, 0x7, 0);
-  //DrawLine4BPP(draw_buffer, 0, 0, 127, 63, 0xC);
-  // OLED_Clear(5,20,320,132,0xff);
+  // DrawText4BPP(draw_buffer, "aac", 10, 5, 0xF);
+  // DrawRect4BPP(draw_buffer, 5, 20, 100, 30, 0x7, 0);
+  // DrawLine4BPP(draw_buffer, 0, 0, 127, 63, 0xC);
+  //  OLED_Clear(5,20,320,132,0xff);
 
   DrawRect4BPP(0, 0, 160, 132, 0x8, 0);
   DrawLine4BPP(0, 0, 70, 131, 0x7);
@@ -135,17 +127,17 @@ void App_DrawUI(void)
   SSD1320_SetAddress(0, 79, 0, 131);
   SSD1320_SendBuffers();
 
-  //SSD1320_SendDataRight(draw_buffer, SSD1320_BUF_SIZE);
-  //SSD1320_SwapBuffers();
+  // SSD1320_SendDataRight(draw_buffer, SSD1320_BUF_SIZE);
+  // SSD1320_SwapBuffers();
   frame_ready = 1;
 }
 
 /* USER CODE END 0 */
 
 /**
-  * @brief  The application entry point.
-  * @retval int
-  */
+ * @brief  The application entry point.
+ * @retval int
+ */
 int main(void)
 {
 
@@ -177,19 +169,20 @@ int main(void)
   MX_TIM8_Init();
   MX_UART4_Init();
   MX_SPI1_Init();
-  /* USER CODE BEGIN 2 */
-  #ifdef __WE_ACT_STUDIO_VERSION
-    _mainWeActStudio();
-  #endif
-  #ifdef __WAVESHARE_EPAPER
-    _mainWaveShare();
-  #endif
-  HAL_Delay (1000);
+/* USER CODE BEGIN 2 */
+#ifdef __WE_ACT_STUDIO_VERSION
+  _mainWeActStudio();
+#endif
+#ifdef __WAVESHARE_EPAPER
+  _mainWaveShare();
+#endif
+  HAL_Delay(1000);
   printf("Screen init : \r\n");
   SSD1320_Init();
 
-  HAL_Delay (1000);
+  HAL_Delay(1000);
   App_DrawUI();
+  test_cpp_class();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -206,73 +199,60 @@ int main(void)
     ITM_SendChar('\n');*/
 
     // <rotary>
-    GPIO_PinState currentReading = HAL_GPIO_ReadPin(GPIOE, ROT_ENCOD_CLICK_Pin);
-
-    if (currentReading != lastButtonState)
-    {
-      // Le bouton a changé d'état, on reset le timer d'anti-rebond
-      lastDebounceTime = HAL_GetTick();
-    }
-
-    if ((HAL_GetTick() - lastDebounceTime) > DEBOUNCE_DELAY)
-    {
-      // Si le nouvel état est stable pendant DEBOUNCE_DELAY ms
-      if (currentReading != buttonState)
-      {
-        buttonState = currentReading;
-
-        if (buttonState == GPIO_PIN_RESET)
-        {
-          // Action à effectuer quand on appuie sur le bouton
-          HAL_GPIO_TogglePin (GPIOE, LED_ON_BOARD_Pin);
-        }
-      }
-    }
-
-    lastButtonState = currentReading;
+    scanRotaryEncoderSwitch();
     // </rotary>
 
     // <blink>
-    //HAL_GPIO_TogglePin (GPIOE, LED_ON_BOARD_Pin);
-    //HAL_Delay (1000);
+    // HAL_GPIO_TogglePin (GPIOE, LED_ON_BOARD_Pin);
+    // HAL_Delay (1000);
     // </blink>
     static uint32_t last = 0;
-    if (HAL_GetTick() - last > 10) {
+    if (HAL_GetTick() - last > 10)
+    {
       last = HAL_GetTick();
-      Keypad_Update();
 
-     int8_t c;
-      while (GetCodeFromBuffer(&c)) {
-        printf("%i\r\n", c);  // Ou traiter autrement
+      KeysState_t keysState = getKeysState();
+      for (int newIdx = 0; newIdx < keysState.newNb; newIdx++)
+      {
+        printf("New char %i\r\n", keysState.new[newIdx]);
+
+        if (keysState.alreadyNb != 0)
+        {
+          for (int alreadyIdx = 0; alreadyIdx < keysState.alreadyNb; alreadyIdx++)
+          {
+            printf("  Already %i\r\n", keysState.already[alreadyIdx]);
+          }
+        }
       }
     }
-
   }
   /* USER CODE END 3 */
 }
 
 /**
-  * @brief System Clock Configuration
-  * @retval None
-  */
+ * @brief System Clock Configuration
+ * @retval None
+ */
 void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 
   /** Supply configuration update enable
-  */
+   */
   HAL_PWREx_ConfigSupply(PWR_LDO_SUPPLY);
 
   /** Configure the main internal regulator output voltage
-  */
+   */
   __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE3);
 
-  while(!__HAL_PWR_GET_FLAG(PWR_FLAG_VOSRDY)) {}
+  while (!__HAL_PWR_GET_FLAG(PWR_FLAG_VOSRDY))
+  {
+  }
 
   /** Initializes the RCC Oscillators according to the specified parameters
-  * in the RCC_OscInitTypeDef structure.
-  */
+   * in the RCC_OscInitTypeDef structure.
+   */
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
   RCC_OscInitStruct.HSIState = RCC_HSI_DIV1;
   RCC_OscInitStruct.HSICalibrationValue = 64;
@@ -292,10 +272,8 @@ void SystemClock_Config(void)
   }
 
   /** Initializes the CPU, AHB and APB buses clocks
-  */
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2
-                              |RCC_CLOCKTYPE_D3PCLK1|RCC_CLOCKTYPE_D1PCLK1;
+   */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2 | RCC_CLOCKTYPE_D3PCLK1 | RCC_CLOCKTYPE_D1PCLK1;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
   RCC_ClkInitStruct.SYSCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_HCLK_DIV1;
@@ -311,10 +289,10 @@ void SystemClock_Config(void)
 }
 
 /**
-  * @brief SPI1 Initialization Function
-  * @param None
-  * @retval None
-  */
+ * @brief SPI1 Initialization Function
+ * @param None
+ * @retval None
+ */
 static void MX_SPI1_Init(void)
 {
 
@@ -355,14 +333,13 @@ static void MX_SPI1_Init(void)
   /* USER CODE BEGIN SPI1_Init 2 */
 
   /* USER CODE END SPI1_Init 2 */
-
 }
 
 /**
-  * @brief TIM8 Initialization Function
-  * @param None
-  * @retval None
-  */
+ * @brief TIM8 Initialization Function
+ * @param None
+ * @retval None
+ */
 static void MX_TIM8_Init(void)
 {
 
@@ -425,14 +402,13 @@ static void MX_TIM8_Init(void)
   /* USER CODE BEGIN TIM8_Init 2 */
 
   /* USER CODE END TIM8_Init 2 */
-
 }
 
 /**
-  * @brief UART4 Initialization Function
-  * @param None
-  * @retval None
-  */
+ * @brief UART4 Initialization Function
+ * @param None
+ * @retval None
+ */
 static void MX_UART4_Init(void)
 {
 
@@ -473,12 +449,11 @@ static void MX_UART4_Init(void)
   /* USER CODE BEGIN UART4_Init 2 */
 
   /* USER CODE END UART4_Init 2 */
-
 }
 
 /**
-  * Enable DMA controller clock
-  */
+ * Enable DMA controller clock
+ */
 static void MX_DMA_Init(void)
 {
 
@@ -489,14 +464,13 @@ static void MX_DMA_Init(void)
   /* DMA1_Stream0_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Stream0_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Stream0_IRQn);
-
 }
 
 /**
-  * @brief GPIO Initialization Function
-  * @param None
-  * @retval None
-  */
+ * @brief GPIO Initialization Function
+ * @param None
+ * @retval None
+ */
 static void MX_GPIO_Init(void)
 {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
@@ -517,11 +491,10 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, SPI12_DC_Pin|SPI2_CS_Pin|SPI12_RESET_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(GPIOB, SPI12_DC_Pin | SPI2_CS_Pin | SPI12_RESET_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOD, KEYB_COL_OUT_7_Pin|KEYB_COL_OUT_0_Pin|KEYB_COL_OUT_6_Pin|KEYB_COL_OUT_1_Pin
-                          |KEYB_COL_OUT_5_Pin|KEYB_COL_OUT_2_Pin|KEYB_COL_OUT_4_Pin|KEYB_COL_OUT_3_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOD, KEYB_COL_OUT_7_Pin | KEYB_COL_OUT_0_Pin | KEYB_COL_OUT_6_Pin | KEYB_COL_OUT_1_Pin | KEYB_COL_OUT_5_Pin | KEYB_COL_OUT_2_Pin | KEYB_COL_OUT_4_Pin | KEYB_COL_OUT_3_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : LED_ON_BOARD_Pin */
   GPIO_InitStruct.Pin = LED_ON_BOARD_Pin;
@@ -531,7 +504,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(LED_ON_BOARD_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : SPI1_FR_Pin SPI2_FR_Pin */
-  GPIO_InitStruct.Pin = SPI1_FR_Pin|SPI2_FR_Pin;
+  GPIO_InitStruct.Pin = SPI1_FR_Pin | SPI2_FR_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
@@ -550,7 +523,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(SPI2_BUSY_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : SPI12_DC_Pin SPI2_CS_Pin SPI12_RESET_Pin */
-  GPIO_InitStruct.Pin = SPI12_DC_Pin|SPI2_CS_Pin|SPI12_RESET_Pin;
+  GPIO_InitStruct.Pin = SPI12_DC_Pin | SPI2_CS_Pin | SPI12_RESET_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_MEDIUM;
@@ -563,30 +536,28 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(ROT_ENCOD_CLICK_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : ROT_ENCOD_LEFT_Pin ROT_ENCOD_RIGHT_Pin */
-  GPIO_InitStruct.Pin = ROT_ENCOD_LEFT_Pin|ROT_ENCOD_RIGHT_Pin;
+  GPIO_InitStruct.Pin = ROT_ENCOD_LEFT_Pin | ROT_ENCOD_RIGHT_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
   /*Configure GPIO pins : KEYB_COL_OUT_7_Pin KEYB_COL_OUT_0_Pin KEYB_COL_OUT_6_Pin KEYB_COL_OUT_1_Pin
                            KEYB_COL_OUT_5_Pin KEYB_COL_OUT_2_Pin KEYB_COL_OUT_4_Pin KEYB_COL_OUT_3_Pin */
-  GPIO_InitStruct.Pin = KEYB_COL_OUT_7_Pin|KEYB_COL_OUT_0_Pin|KEYB_COL_OUT_6_Pin|KEYB_COL_OUT_1_Pin
-                          |KEYB_COL_OUT_5_Pin|KEYB_COL_OUT_2_Pin|KEYB_COL_OUT_4_Pin|KEYB_COL_OUT_3_Pin;
+  GPIO_InitStruct.Pin = KEYB_COL_OUT_7_Pin | KEYB_COL_OUT_0_Pin | KEYB_COL_OUT_6_Pin | KEYB_COL_OUT_1_Pin | KEYB_COL_OUT_5_Pin | KEYB_COL_OUT_2_Pin | KEYB_COL_OUT_4_Pin | KEYB_COL_OUT_3_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
   /*Configure GPIO pins : KEYB_ROW_IN_7_Pin KEYB_ROW_IN_0_Pin KEYB_ROW_IN_6_NOT_WORKING_Pin KEYB_ROW_IN_1_NOTWORKING_Pin */
-  GPIO_InitStruct.Pin = KEYB_ROW_IN_7_Pin|KEYB_ROW_IN_0_Pin|KEYB_ROW_IN_6_NOT_WORKING_Pin|KEYB_ROW_IN_1_NOTWORKING_Pin;
+  GPIO_InitStruct.Pin = KEYB_ROW_IN_7_Pin | KEYB_ROW_IN_0_Pin | KEYB_ROW_IN_6_NOT_WORKING_Pin | KEYB_ROW_IN_1_NOTWORKING_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /*Configure GPIO pins : KEYB_ROW_IN_5_Pin KEYB_ROW_IN_2_Pin KEYB_ROW_IN_4_Pin KEYB_ROW_IN_3_Pin
                            KEYB_ROW_IN_1_Pin KEYB_ROW_IN_6_Pin */
-  GPIO_InitStruct.Pin = KEYB_ROW_IN_5_Pin|KEYB_ROW_IN_2_Pin|KEYB_ROW_IN_4_Pin|KEYB_ROW_IN_3_Pin
-                          |KEYB_ROW_IN_1_Pin|KEYB_ROW_IN_6_Pin;
+  GPIO_InitStruct.Pin = KEYB_ROW_IN_5_Pin | KEYB_ROW_IN_2_Pin | KEYB_ROW_IN_4_Pin | KEYB_ROW_IN_3_Pin | KEYB_ROW_IN_1_Pin | KEYB_ROW_IN_6_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
@@ -601,110 +572,114 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 #ifdef __WE_ACT_STUDIO_VERSION
-  int _mainWeActStudio(void) {
-    uint8_t text[20];
+int _mainWeActStudio(void)
+{
+  uint8_t text[20];
 
-    HAL_Delay(1000);
-    printf("WeActStudio start : \r\n");
-    epd_init();
-    epd_paint_clear(EPD_COLOR_WHITE);
-    epd_paint_newimage(image_bw, EPD_W, EPD_H, EPD_ROTATE_270, EPD_COLOR_WHITE);
-    epd_paint_selectimage(image_bw);
-    epd_paint_clear(EPD_COLOR_WHITE);
-    epd_paint_showPicture(
+  HAL_Delay(1000);
+  printf("WeActStudio start : \r\n");
+  epd_init();
+  epd_paint_clear(EPD_COLOR_WHITE);
+  epd_paint_newimage(image_bw, EPD_W, EPD_H, EPD_ROTATE_270, EPD_COLOR_WHITE);
+  epd_paint_selectimage(image_bw);
+  epd_paint_clear(EPD_COLOR_WHITE);
+  epd_paint_showPicture(
       (EPD_W - 250) / 2,
       (EPD_H - 122) / 2,
       250, 122,
       gImage_1,
       EPD_COLOR_WHITE);
-    epd_displayBW(image_bw);
-    //epd_enter_deepsleepmode(EPD_DEEPSLEEP_MODE1);
+  epd_displayBW(image_bw);
+  // epd_enter_deepsleepmode(EPD_DEEPSLEEP_MODE1);
 
-    HAL_Delay(2000);
-    printf("... Partial display  \r\n");
-    epd_init_partial();
+  HAL_Delay(2000);
+  printf("... Partial display  \r\n");
+  epd_init_partial();
 
-    epd_paint_selectimage(image_bw);
-    epd_paint_clear(EPD_COLOR_WHITE);
+  epd_paint_selectimage(image_bw);
+  epd_paint_clear(EPD_COLOR_WHITE);
 
-    epd_paint_showString(10, 0, (uint8_t *)&"4.2 Inch Epaper Module", EPD_FONT_SIZE24x12, EPD_COLOR_BLACK);
-    epd_paint_showString(10, 50, (uint8_t *)&"with 400 x 300 resolution", EPD_FONT_SIZE16x8, EPD_COLOR_BLACK);
-    epd_paint_showString(10, 29, (uint8_t *)&"Designed By WeAct Studio", EPD_FONT_SIZE16x8, EPD_COLOR_BLACK);
+  epd_paint_showString(10, 0, (uint8_t *)&"4.2 Inch Epaper Module", EPD_FONT_SIZE24x12, EPD_COLOR_BLACK);
+  epd_paint_showString(10, 50, (uint8_t *)&"with 400 x 300 resolution", EPD_FONT_SIZE16x8, EPD_COLOR_BLACK);
+  epd_paint_showString(10, 29, (uint8_t *)&"Designed By WeAct Studio", EPD_FONT_SIZE16x8, EPD_COLOR_BLACK);
 
-    /*#if 0
-      epd_paint_showString(10,100,(uint8_t *)&"CH32F103C8T6 Example",EPD_FONT_SIZE16x8,EPD_COLOR_BLACK);
-    #else*/
-    epd_paint_drawRectangle(10, EPD_W-20, EPD_H - 10, EPD_W-6, EPD_COLOR_BLACK, 1);
-    epd_update();
-    //#endif
-    HAL_Delay(1500);
-    /*epd_paint_clear(EPD_COLOR_WHITE);
-    HAL_Delay(700);
-    epd_paint_clear(EPD_COLOR_BLACK);
-    HAL_Delay(700);
-    epd_paint_clear(EPD_COLOR_WHITE);
-    HAL_Delay(700);
-    epd_paint_clear(EPD_COLOR_BLACK);
-  */
-    sprintf((char *)&text, ">> Partial Mode");
+  /*#if 0
+    epd_paint_showString(10,100,(uint8_t *)&"CH32F103C8T6 Example",EPD_FONT_SIZE16x8,EPD_COLOR_BLACK);
+  #else*/
+  epd_paint_drawRectangle(10, EPD_W - 20, EPD_H - 10, EPD_W - 6, EPD_COLOR_BLACK, 1);
+  epd_update();
+  // #endif
+  HAL_Delay(1500);
+  /*epd_paint_clear(EPD_COLOR_WHITE);
+  HAL_Delay(700);
+  epd_paint_clear(EPD_COLOR_BLACK);
+  HAL_Delay(700);
+  epd_paint_clear(EPD_COLOR_WHITE);
+  HAL_Delay(700);
+  epd_paint_clear(EPD_COLOR_BLACK);
+*/
+  sprintf((char *)&text, ">> Partial Mode");
+  epd_paint_showString(10, 71, text, EPD_FONT_SIZE24x12, EPD_COLOR_BLACK);
+
+  epd_displayBW_partial(image_bw);
+
+  printf("Before loop.\r\n");
+  HAL_Delay(500);
+
+  for (int i = 123; i < 8 * 123; i += 123)
+  {
+    sprintf((char *)&text, ">> Num=%d     ", i);
     epd_paint_showString(10, 71, text, EPD_FONT_SIZE24x12, EPD_COLOR_BLACK);
 
     epd_displayBW_partial(image_bw);
 
-    printf("Before loop.\r\n");
-    HAL_Delay(500);
-
-    for (int i = 123; i < 8 * 123; i += 123)
-    {
-      sprintf((char *)&text, ">> Num=%d     ", i);
-      epd_paint_showString(10, 71, text, EPD_FONT_SIZE24x12, EPD_COLOR_BLACK);
-
-      epd_displayBW_partial(image_bw);
-
-      HAL_Delay(100);
-    }
-
-    sprintf((char *)&text, ">> Hello World.");
-    epd_paint_showString(10, 71, text, EPD_FONT_SIZE24x12, EPD_COLOR_BLACK);
-    epd_displayBW_partial(image_bw);
-
-    HAL_Delay(1000);
-    epd_paint_clear(EPD_COLOR_WHITE);
-    epd_update();
-
-    epd_enter_deepsleepmode(EPD_DEEPSLEEP_MODE1);
-
-    printf("END ");
-    printf("(WeActStudio Code)\r\n");
+    HAL_Delay(100);
   }
+
+  sprintf((char *)&text, ">> Hello World.");
+  epd_paint_showString(10, 71, text, EPD_FONT_SIZE24x12, EPD_COLOR_BLACK);
+  epd_displayBW_partial(image_bw);
+
+  HAL_Delay(1000);
+  epd_paint_clear(EPD_COLOR_WHITE);
+  epd_update();
+
+  epd_enter_deepsleepmode(EPD_DEEPSLEEP_MODE1);
+
+  printf("END ");
+  printf("(WeActStudio Code)\r\n");
+}
 
 #endif
 
 #ifdef __WAVESHARE_EPAPER
 
-  int _mainWaveShare(void) {
-    printf("EPD_4IN2_V2_test Demo\r\n");
-    if(DEV_Module_Init()!=0){
-      return -1;
-    }
+int _mainWaveShare(void)
+{
+  printf("EPD_4IN2_V2_test Demo\r\n");
+  if (DEV_Module_Init() != 0)
+  {
+    return -1;
+  }
 
-    printf("e-Paper Init and Clear...\r\n");
-    EPD_4IN2_V2_Init();
-    EPD_4IN2_V2_Clear();
-    DEV_Delay_ms(500);
+  printf("e-Paper Init and Clear...\r\n");
+  EPD_4IN2_V2_Init();
+  EPD_4IN2_V2_Clear();
+  DEV_Delay_ms(500);
 
-    //Create a new image cache
-    UBYTE *BlackImage;
-    /* you have to edit the startup_stm32fxxx.s file and set a big enough heap size */
-    UWORD Imagesize = ((EPD_4IN2_V2_WIDTH % 8 == 0)? (EPD_4IN2_V2_WIDTH / 8 ): (EPD_4IN2_V2_WIDTH / 8 + 1)) * EPD_4IN2_V2_HEIGHT;
-    if((BlackImage = (UBYTE *)malloc(Imagesize)) == NULL) {
-      printf("Failed to apply for black memory...\r\n");
-      return -1;
-    }
-    printf("Paint_NewImage\r\n");
-    Paint_NewImage(BlackImage, EPD_4IN2_V2_WIDTH, EPD_4IN2_V2_HEIGHT, 0, WHITE);
+  // Create a new image cache
+  UBYTE *BlackImage;
+  /* you have to edit the startup_stm32fxxx.s file and set a big enough heap size */
+  UWORD Imagesize = ((EPD_4IN2_V2_WIDTH % 8 == 0) ? (EPD_4IN2_V2_WIDTH / 8) : (EPD_4IN2_V2_WIDTH / 8 + 1)) * EPD_4IN2_V2_HEIGHT;
+  if ((BlackImage = (UBYTE *)malloc(Imagesize)) == NULL)
+  {
+    printf("Failed to apply for black memory...\r\n");
+    return -1;
+  }
+  printf("Paint_NewImage\r\n");
+  Paint_NewImage(BlackImage, EPD_4IN2_V2_WIDTH, EPD_4IN2_V2_HEIGHT, 0, WHITE);
 
-    #if 0  // show bmp
+#if 0 // show bmp
       printf("Clear WHITE\r\n");
       Paint_SelectImage(BlackImage);
       Paint_Clear(WHITE);
@@ -718,9 +693,9 @@ static void MX_GPIO_Init(void)
       EPD_4IN2_V2_Display(BlackImage);
       DEV_Delay_ms(2000);
 
-    #endif
+#endif
 
-    #if 0  // show image for array
+#if 0 // show image for array
     //    EPD_4IN2_V2_Init_Fast(Seconds_1_5S);
       EPD_4IN2_V2_Init_Fast(Seconds_1S);
       printf("show image for array\r\n");
@@ -729,176 +704,185 @@ static void MX_GPIO_Init(void)
       Paint_DrawBitMap(gImage_4in2);
       EPD_4IN2_V2_Display_Fast(BlackImage);
       DEV_Delay_ms(2000);
-    #endif
+#endif
 
-    #if 1   // Drawing on the image
+#if 1 // Drawing on the image
 
-      EPD_4IN2_V2_Init();
-      //1.Select Image
-      printf("SelectImage:BlackImage\r\n");
-      Paint_SelectImage(BlackImage);
-      Paint_Clear(WHITE);
+  EPD_4IN2_V2_Init();
+  // 1.Select Image
+  printf("SelectImage:BlackImage\r\n");
+  Paint_SelectImage(BlackImage);
+  Paint_Clear(WHITE);
 
-      // 2.Drawing on the image
-      printf("Drawing:BlackImage\r\n");
-      Paint_DrawPoint(10, 80, BLACK, DOT_PIXEL_1X1, DOT_STYLE_DFT);
-      Paint_DrawPoint(10, 90, BLACK, DOT_PIXEL_2X2, DOT_STYLE_DFT);
-      Paint_DrawPoint(10, 100, BLACK, DOT_PIXEL_3X3, DOT_STYLE_DFT);
-      Paint_DrawLine(20, 70, 70, 120, BLACK, DOT_PIXEL_1X1, LINE_STYLE_SOLID);
-      Paint_DrawLine(70, 70, 20, 120, BLACK, DOT_PIXEL_1X1, LINE_STYLE_SOLID);
-      Paint_DrawRectangle(20, 70, 70, 120, BLACK, DOT_PIXEL_1X1, DRAW_FILL_EMPTY);
-      Paint_DrawRectangle(80, 70, 130, 120, BLACK, DOT_PIXEL_1X1, DRAW_FILL_FULL);
-      Paint_DrawCircle(45, 95, 20, BLACK, DOT_PIXEL_1X1, DRAW_FILL_EMPTY);
-      Paint_DrawCircle(105, 95, 20, WHITE, DOT_PIXEL_1X1, DRAW_FILL_FULL);
-      Paint_DrawLine(85, 95, 125, 95, BLACK, DOT_PIXEL_1X1, LINE_STYLE_DOTTED);
-      Paint_DrawLine(105, 75, 105, 115, BLACK, DOT_PIXEL_1X1, LINE_STYLE_DOTTED);
-      Paint_DrawString_EN(10, 0, "waveshare", &Font16, BLACK, WHITE);
-      Paint_DrawString_EN(10, 20, "hello world", &Font12, WHITE, BLACK);
-      Paint_DrawNum(10, 33, 123456789, &Font12, BLACK, WHITE);
-      Paint_DrawNum(10, 50, 987654321, &Font16, WHITE, BLACK);
-      Paint_DrawString_CN(130, 0, " ���abc", &Font12CN, BLACK, WHITE);
-      Paint_DrawString_CN(130, 20, "΢ѩ����", &Font24CN, WHITE, BLACK);
+  // 2.Drawing on the image
+  printf("Drawing:BlackImage\r\n");
+  Paint_DrawPoint(10, 80, BLACK, DOT_PIXEL_1X1, DOT_STYLE_DFT);
+  Paint_DrawPoint(10, 90, BLACK, DOT_PIXEL_2X2, DOT_STYLE_DFT);
+  Paint_DrawPoint(10, 100, BLACK, DOT_PIXEL_3X3, DOT_STYLE_DFT);
+  Paint_DrawLine(20, 70, 70, 120, BLACK, DOT_PIXEL_1X1, LINE_STYLE_SOLID);
+  Paint_DrawLine(70, 70, 20, 120, BLACK, DOT_PIXEL_1X1, LINE_STYLE_SOLID);
+  Paint_DrawRectangle(20, 70, 70, 120, BLACK, DOT_PIXEL_1X1, DRAW_FILL_EMPTY);
+  Paint_DrawRectangle(80, 70, 130, 120, BLACK, DOT_PIXEL_1X1, DRAW_FILL_FULL);
+  Paint_DrawCircle(45, 95, 20, BLACK, DOT_PIXEL_1X1, DRAW_FILL_EMPTY);
+  Paint_DrawCircle(105, 95, 20, WHITE, DOT_PIXEL_1X1, DRAW_FILL_FULL);
+  Paint_DrawLine(85, 95, 125, 95, BLACK, DOT_PIXEL_1X1, LINE_STYLE_DOTTED);
+  Paint_DrawLine(105, 75, 105, 115, BLACK, DOT_PIXEL_1X1, LINE_STYLE_DOTTED);
+  Paint_DrawString_EN(10, 0, "waveshare", &Font16, BLACK, WHITE);
+  Paint_DrawString_EN(10, 20, "hello world", &Font12, WHITE, BLACK);
+  Paint_DrawNum(10, 33, 123456789, &Font12, BLACK, WHITE);
+  Paint_DrawNum(10, 50, 987654321, &Font16, WHITE, BLACK);
+  Paint_DrawString_CN(130, 0, " ���abc", &Font12CN, BLACK, WHITE);
+  Paint_DrawString_CN(130, 20, "΢ѩ����", &Font24CN, WHITE, BLACK);
 
-      printf("EPD_Display\r\n");
-       // EPD_4IN2_V2_Display(BlackImage);
-      EPD_4IN2_V2_Display(BlackImage);
-      DEV_Delay_ms(1000);
-      //Paint_Clear(WHITE);
-      //EPD_4IN2_V2_Display(BlackImage);
-    #endif
+  printf("EPD_Display\r\n");
+  // EPD_4IN2_V2_Display(BlackImage);
+  EPD_4IN2_V2_Display(BlackImage);
+  DEV_Delay_ms(1000);
+  // Paint_Clear(WHITE);
+  // EPD_4IN2_V2_Display(BlackImage);
+#endif
 
-    #if 1
-      EPD_4IN2_V2_Reset();
-      Paint_NewImage(BlackImage, 200, 50, 0, WHITE);
-      PAINT_TIME sPaint_time;
-      sPaint_time.Hour = 12;
-      sPaint_time.Min = 34;
-      sPaint_time.Sec = 56;
-      UBYTE num = 12;
-      Paint_Clear(WHITE);
-      for (;;) {
-        sPaint_time.Sec = sPaint_time.Sec + 1;
-        if (sPaint_time.Sec == 60) {
-          sPaint_time.Min = sPaint_time.Min + 1;
+#if 1
+  EPD_4IN2_V2_Reset();
+  Paint_NewImage(BlackImage, 200, 50, 0, WHITE);
+  PAINT_TIME sPaint_time;
+  sPaint_time.Hour = 12;
+  sPaint_time.Min = 34;
+  sPaint_time.Sec = 56;
+  UBYTE num = 12;
+  Paint_Clear(WHITE);
+  for (;;)
+  {
+    sPaint_time.Sec = sPaint_time.Sec + 1;
+    if (sPaint_time.Sec == 60)
+    {
+      sPaint_time.Min = sPaint_time.Min + 1;
+      sPaint_time.Sec = 0;
+      if (sPaint_time.Min == 60)
+      {
+        sPaint_time.Hour = sPaint_time.Hour + 1;
+        sPaint_time.Min = 0;
+        if (sPaint_time.Hour == 24)
+        {
+          sPaint_time.Hour = 0;
+          sPaint_time.Min = 0;
           sPaint_time.Sec = 0;
-          if (sPaint_time.Min == 60) {
-            sPaint_time.Hour =  sPaint_time.Hour + 1;
-            sPaint_time.Min = 0;
-            if (sPaint_time.Hour == 24) {
-              sPaint_time.Hour = 0;
-              sPaint_time.Min = 0;
-              sPaint_time.Sec = 0;
-            }
-          }
-        }
-        Paint_Clear(WHITE);
-        Paint_DrawTime(20, 10, &sPaint_time, &Font20, WHITE, BLACK);
-        if (num % 3 == 0) {
-          EPD_4IN2_V2_PartialDisplay(BlackImage, 80, 200, 280, 250);
-        } else {
-          EPD_4IN2_V2_PartialDisplay(BlackImage, 100, 250, 300, 300);
-        }
-        DEV_Delay_ms(1600);//Analog clock 1s
-        num = num - 1;
-        if(num == 0) {
-         break;
         }
       }
-      DEV_Delay_ms(2000);
-
-      // Paint_Clear(WHITE);
-
-      UWORD Dx = Font20.Width;
-      UWORD Dy = Font20.Height;
-      printf("\r\n\r\nPartial refresh on (%i * %i)\r\n", 30 * Dx, Dy);
-      int subImageWidth = 10;
-      int subImageHeight = 20;
-      printf("  -> display one letter\r\n");
-      Paint_NewImage(BlackImage, 10, 20, 0, WHITE);
-
-      for (int i = 0; i < 30; i++) {
-        int posX = 10 + i * 20;
-        int posY = 100;
-        Paint_Clear(WHITE);
-        Paint_DrawChar(0, 0, 'a' + i, &Font20, BLACK, WHITE);
-        // On deplace la fenetre de 10 en 10.
-        EPD_4IN2_V2_PartialDisplay(BlackImage, posX, posY, posX + subImageWidth, posY + subImageHeight);
-        //EPD_4IN2_V2_PartialDisplay(BlackImage, 10 + Dx * i, 200, 10 + Dx * (i + 1), 200 + Dy);
-      }
-      printf("\r\n\r\nPartial refresh END\r\n");
-      Paint_Clear(WHITE);
-
-     #endif
-
-
-   #if 1
-       // EPD_4IN2_V2_Init();
-     // EPD_4IN2_V2_Clear();
-     EPD_4IN2_V2_Init_4Gray();
-     printf("show Gray------------------------\r\n");
-     free(BlackImage);
-     BlackImage = NULL;
-     Imagesize = ((EPD_4IN2_V2_WIDTH % 8 == 0)? (EPD_4IN2_V2_WIDTH / 4 ): (EPD_4IN2_V2_WIDTH / 4 + 1)) * EPD_4IN2_V2_HEIGHT;
-       if((BlackImage = (UBYTE *)malloc(Imagesize)) == NULL) {
-           printf("Failed to apply for black memory...\r\n");
-           return -1;
-       }
-     Paint_NewImage(BlackImage, EPD_4IN2_V2_WIDTH, EPD_4IN2_V2_HEIGHT, 0, WHITE);
-     Paint_SetScale(4);
-     Paint_Clear(WHITE);
-
-     Paint_DrawPoint(10, 80, BLACK, DOT_PIXEL_1X1, DOT_STYLE_DFT);
-       Paint_DrawPoint(10, 90, BLACK, DOT_PIXEL_2X2, DOT_STYLE_DFT);
-       Paint_DrawPoint(10, 100, BLACK, DOT_PIXEL_3X3, DOT_STYLE_DFT);
-       Paint_DrawLine(20, 70, 70, 120, BLACK, DOT_PIXEL_1X1, LINE_STYLE_SOLID);
-       Paint_DrawLine(70, 70, 20, 120, BLACK, DOT_PIXEL_1X1, LINE_STYLE_SOLID);
-       Paint_DrawRectangle(20, 70, 70, 120, BLACK, DOT_PIXEL_1X1, DRAW_FILL_EMPTY);
-       Paint_DrawRectangle(80, 70, 130, 120, BLACK, DOT_PIXEL_1X1, DRAW_FILL_FULL);
-       Paint_DrawCircle(45, 95, 20, BLACK, DOT_PIXEL_1X1, DRAW_FILL_EMPTY);
-       Paint_DrawCircle(105, 95, 20, WHITE, DOT_PIXEL_1X1, DRAW_FILL_FULL);
-       Paint_DrawLine(85, 95, 125, 95, BLACK, DOT_PIXEL_1X1, LINE_STYLE_DOTTED);
-       Paint_DrawLine(105, 75, 105, 115, BLACK, DOT_PIXEL_1X1, LINE_STYLE_DOTTED);
-       Paint_DrawString_EN(10, 0, "waveshare", &Font16, BLACK, WHITE);
-       Paint_DrawString_EN(10, 20, "hello world", &Font12, WHITE, BLACK);
-       Paint_DrawNum(10, 33, 123456789, &Font12, BLACK, WHITE);
-       Paint_DrawNum(10, 50, 987654321, &Font16, WHITE, BLACK);
-       Paint_DrawString_CN(140, 0, "���abc", &Font12CN, GRAY1, GRAY4);
-       Paint_DrawString_CN(140, 40, "���abc", &Font12CN, GRAY2, GRAY3);
-       Paint_DrawString_CN(140, 80, "���abc", &Font12CN, GRAY3, GRAY2);
-       Paint_DrawString_CN(140, 120, "���abc", &Font12CN, GRAY4, GRAY1);
-
-       Paint_DrawString_CN(220, 0, "΢ѩ����", &Font24CN, GRAY1, GRAY4);
-       Paint_DrawString_CN(220, 40, "΢ѩ����", &Font24CN, GRAY2, GRAY3);
-       Paint_DrawString_CN(220, 80, "΢ѩ����", &Font24CN, GRAY3, GRAY2);
-       Paint_DrawString_CN(220, 120, "΢ѩ����", &Font24CN, GRAY4, GRAY1);
-
-     EPD_4IN2_V2_Display_4Gray(BlackImage);
-     DEV_Delay_ms(2000);
-
-     Paint_Clear(WHITE);
-       Paint_DrawBitMap(gImage_4in2_4Gray);
-       EPD_4IN2_V2_Display_4Gray(BlackImage);
-     DEV_Delay_ms(2000);
-
-   #endif
-
-       EPD_4IN2_V2_Init();
-       EPD_4IN2_V2_Clear();
-       printf("Goto Sleep...\r\n");
-       EPD_4IN2_V2_Sleep();
-       free(BlackImage);
-       BlackImage = NULL;
-       DEV_Delay_ms(2000);//important, at least 2s
-       // close 5V
-       printf("close 5V, Module enters 0 power consumption ...\r\n");
-       DEV_Module_Exit();
-
-       return 0;
+    }
+    Paint_Clear(WHITE);
+    Paint_DrawTime(20, 10, &sPaint_time, &Font20, WHITE, BLACK);
+    if (num % 3 == 0)
+    {
+      EPD_4IN2_V2_PartialDisplay(BlackImage, 80, 200, 280, 250);
+    }
+    else
+    {
+      EPD_4IN2_V2_PartialDisplay(BlackImage, 100, 250, 300, 300);
+    }
+    DEV_Delay_ms(1600); // Analog clock 1s
+    num = num - 1;
+    if (num == 0)
+    {
+      break;
+    }
   }
+  DEV_Delay_ms(2000);
+
+  // Paint_Clear(WHITE);
+
+  UWORD Dx = Font20.Width;
+  UWORD Dy = Font20.Height;
+  printf("\r\n\r\nPartial refresh on (%i * %i)\r\n", 30 * Dx, Dy);
+  int subImageWidth = 10;
+  int subImageHeight = 20;
+  printf("  -> display one letter\r\n");
+  Paint_NewImage(BlackImage, 10, 20, 0, WHITE);
+
+  for (int i = 0; i < 30; i++)
+  {
+    int posX = 10 + i * 20;
+    int posY = 100;
+    Paint_Clear(WHITE);
+    Paint_DrawChar(0, 0, 'a' + i, &Font20, BLACK, WHITE);
+    // On deplace la fenetre de 10 en 10.
+    EPD_4IN2_V2_PartialDisplay(BlackImage, posX, posY, posX + subImageWidth, posY + subImageHeight);
+    // EPD_4IN2_V2_PartialDisplay(BlackImage, 10 + Dx * i, 200, 10 + Dx * (i + 1), 200 + Dy);
+  }
+  printf("\r\n\r\nPartial refresh END\r\n");
+  Paint_Clear(WHITE);
+
+#endif
+
+#if 1
+  // EPD_4IN2_V2_Init();
+  // EPD_4IN2_V2_Clear();
+  EPD_4IN2_V2_Init_4Gray();
+  printf("show Gray------------------------\r\n");
+  free(BlackImage);
+  BlackImage = NULL;
+  Imagesize = ((EPD_4IN2_V2_WIDTH % 8 == 0) ? (EPD_4IN2_V2_WIDTH / 4) : (EPD_4IN2_V2_WIDTH / 4 + 1)) * EPD_4IN2_V2_HEIGHT;
+  if ((BlackImage = (UBYTE *)malloc(Imagesize)) == NULL)
+  {
+    printf("Failed to apply for black memory...\r\n");
+    return -1;
+  }
+  Paint_NewImage(BlackImage, EPD_4IN2_V2_WIDTH, EPD_4IN2_V2_HEIGHT, 0, WHITE);
+  Paint_SetScale(4);
+  Paint_Clear(WHITE);
+
+  Paint_DrawPoint(10, 80, BLACK, DOT_PIXEL_1X1, DOT_STYLE_DFT);
+  Paint_DrawPoint(10, 90, BLACK, DOT_PIXEL_2X2, DOT_STYLE_DFT);
+  Paint_DrawPoint(10, 100, BLACK, DOT_PIXEL_3X3, DOT_STYLE_DFT);
+  Paint_DrawLine(20, 70, 70, 120, BLACK, DOT_PIXEL_1X1, LINE_STYLE_SOLID);
+  Paint_DrawLine(70, 70, 20, 120, BLACK, DOT_PIXEL_1X1, LINE_STYLE_SOLID);
+  Paint_DrawRectangle(20, 70, 70, 120, BLACK, DOT_PIXEL_1X1, DRAW_FILL_EMPTY);
+  Paint_DrawRectangle(80, 70, 130, 120, BLACK, DOT_PIXEL_1X1, DRAW_FILL_FULL);
+  Paint_DrawCircle(45, 95, 20, BLACK, DOT_PIXEL_1X1, DRAW_FILL_EMPTY);
+  Paint_DrawCircle(105, 95, 20, WHITE, DOT_PIXEL_1X1, DRAW_FILL_FULL);
+  Paint_DrawLine(85, 95, 125, 95, BLACK, DOT_PIXEL_1X1, LINE_STYLE_DOTTED);
+  Paint_DrawLine(105, 75, 105, 115, BLACK, DOT_PIXEL_1X1, LINE_STYLE_DOTTED);
+  Paint_DrawString_EN(10, 0, "waveshare", &Font16, BLACK, WHITE);
+  Paint_DrawString_EN(10, 20, "hello world", &Font12, WHITE, BLACK);
+  Paint_DrawNum(10, 33, 123456789, &Font12, BLACK, WHITE);
+  Paint_DrawNum(10, 50, 987654321, &Font16, WHITE, BLACK);
+  Paint_DrawString_CN(140, 0, "���abc", &Font12CN, GRAY1, GRAY4);
+  Paint_DrawString_CN(140, 40, "���abc", &Font12CN, GRAY2, GRAY3);
+  Paint_DrawString_CN(140, 80, "���abc", &Font12CN, GRAY3, GRAY2);
+  Paint_DrawString_CN(140, 120, "���abc", &Font12CN, GRAY4, GRAY1);
+
+  Paint_DrawString_CN(220, 0, "΢ѩ����", &Font24CN, GRAY1, GRAY4);
+  Paint_DrawString_CN(220, 40, "΢ѩ����", &Font24CN, GRAY2, GRAY3);
+  Paint_DrawString_CN(220, 80, "΢ѩ����", &Font24CN, GRAY3, GRAY2);
+  Paint_DrawString_CN(220, 120, "΢ѩ����", &Font24CN, GRAY4, GRAY1);
+
+  EPD_4IN2_V2_Display_4Gray(BlackImage);
+  DEV_Delay_ms(2000);
+
+  Paint_Clear(WHITE);
+  Paint_DrawBitMap(gImage_4in2_4Gray);
+  EPD_4IN2_V2_Display_4Gray(BlackImage);
+  DEV_Delay_ms(2000);
+
+#endif
+
+  EPD_4IN2_V2_Init();
+  EPD_4IN2_V2_Clear();
+  printf("Goto Sleep...\r\n");
+  EPD_4IN2_V2_Sleep();
+  free(BlackImage);
+  BlackImage = NULL;
+  DEV_Delay_ms(2000); // important, at least 2s
+  // close 5V
+  printf("close 5V, Module enters 0 power consumption ...\r\n");
+  DEV_Module_Exit();
+
+  return 0;
+}
 #endif
 /* USER CODE END 4 */
 
- /* MPU Configuration */
+/* MPU Configuration */
 
 void MPU_Config(void)
 {
@@ -908,7 +892,7 @@ void MPU_Config(void)
   HAL_MPU_Disable();
 
   /** Initializes and configures the Region and the memory to be protected
-  */
+   */
   MPU_InitStruct.Enable = MPU_REGION_ENABLE;
   MPU_InitStruct.Number = MPU_REGION_NUMBER0;
   MPU_InitStruct.BaseAddress = 0x0;
@@ -924,13 +908,12 @@ void MPU_Config(void)
   HAL_MPU_ConfigRegion(&MPU_InitStruct);
   /* Enables the MPU */
   HAL_MPU_Enable(MPU_PRIVILEGED_DEFAULT);
-
 }
 
 /**
-  * @brief  This function is executed in case of error occurrence.
-  * @retval None
-  */
+ * @brief  This function is executed in case of error occurrence.
+ * @retval None
+ */
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
@@ -942,14 +925,14 @@ void Error_Handler(void)
   /* USER CODE END Error_Handler_Debug */
 }
 
-#ifdef  USE_FULL_ASSERT
+#ifdef USE_FULL_ASSERT
 /**
-  * @brief  Reports the name of the source file and the source line number
-  *         where the assert_param error has occurred.
-  * @param  file: pointer to the source file name
-  * @param  line: assert_param error line source number
-  * @retval None
-  */
+ * @brief  Reports the name of the source file and the source line number
+ *         where the assert_param error has occurred.
+ * @param  file: pointer to the source file name
+ * @param  line: assert_param error line source number
+ * @retval None
+ */
 void assert_failed(uint8_t *file, uint32_t line)
 {
   /* USER CODE BEGIN 6 */
