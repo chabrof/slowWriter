@@ -4,8 +4,10 @@
 #include <stm32h723xx.h>
 #include <stdio.h>
 
-uint32_t rot_encod_lastTick = 0;
-
+uint32_t rot_encod_left_lastTick = 0;
+uint32_t rot_encod_right_lastTick = 0;
+uint8_t rotary_encoder_left_cycle_state = 0; // 0: NOT_BEGAN 1: BEGAN 2: COMPLETE
+uint8_t rotary_encoder_right_cycle_state = 0; // 0: NOT_BEGAN 1: BEGAN 2: COMPLETE
 // Switch scan
 uint32_t lastDebounceTime = 0;
 GPIO_PinState lastButtonState = GPIO_PIN_SET;
@@ -171,16 +173,57 @@ void scanRotaryEncoder(uint16_t GPIO_Pin)
   if (GPIO_Pin == ROT_ENCOD_LEFT_Pin)
   {
     uint32_t now = HAL_GetTick();
-    if (now - rot_encod_lastTick < ROT_ENCOD_DEBOUNCE_DELAY)
+    if (now - rot_encod_left_lastTick < ROT_ENCOD_DEBOUNCE_DELAY)
     {
       printf("Debounce !\r\n");
-      rot_encod_lastTick = now;
+      rot_encod_left_lastTick = now;
       return; // Ignore interruption if too quick
     }
-    rot_encod_lastTick = now;
+    rot_encod_left_lastTick = now;
     otherPinState = HAL_GPIO_ReadPin(ROT_ENCOD_RIGHT_GPIO_Port, ROT_ENCOD_RIGHT_Pin);
+
+    if (rotary_encoder_right_cycle_state == 1) {
+      //printf("RIGHT ROTARY !\r\n");
+      if (otherPinState == GPIO_PIN_RESET) {
+        printf("RR\r\n");
+      }
+      //} else {
+      //  printf(" /!\\ Error in RIGHT ROTARY CYCLE !");
+      //}
+      // End of cycle
+      rotary_encoder_right_cycle_state = 0;
+    } else if (otherPinState == GPIO_PIN_SET)
+    {
+      rotary_encoder_left_cycle_state = 1;
+    }
   }
 
+  if (GPIO_Pin == ROT_ENCOD_RIGHT_Pin)
+  {
+    uint32_t now = HAL_GetTick();
+    if (now - rot_encod_right_lastTick < ROT_ENCOD_DEBOUNCE_DELAY)
+    {
+      printf("Debounce !\r\n");
+      rot_encod_right_lastTick = now;
+      return; // Ignore interruption if too quick
+    }
+    rot_encod_right_lastTick = now;
+    otherPinState = HAL_GPIO_ReadPin(ROT_ENCOD_LEFT_GPIO_Port, ROT_ENCOD_LEFT_Pin);
 
+    if (rotary_encoder_left_cycle_state == 1) {
+      // printf("LEFT ROTARY !\r\n");
+      if (otherPinState == GPIO_PIN_RESET) {
+        printf("LR\r\n");
+      }
+      //else {
+      //  printf(" /!\\ Error in LEFT ROTARY CYCLE !");
+      //}
+      // End of cycle
+      rotary_encoder_left_cycle_state = 0;
+    } else if (otherPinState == GPIO_PIN_SET)
+    {
+      rotary_encoder_right_cycle_state = 1;
+    }
+  }
 }
 #endif

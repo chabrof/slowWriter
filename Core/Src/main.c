@@ -135,9 +135,9 @@ void App_DrawUI(void)
 /* USER CODE END 0 */
 
 /**
- * @brief  The application entry point.
- * @retval int
- */
+  * @brief  The application entry point.
+  * @retval int
+  */
 int main(void)
 {
 
@@ -169,7 +169,7 @@ int main(void)
   MX_TIM8_Init();
   MX_UART4_Init();
   MX_SPI1_Init();
-/* USER CODE BEGIN 2 */
+  /* USER CODE BEGIN 2 */
 #ifdef __WE_ACT_STUDIO_VERSION
   _mainWeActStudio();
 #endif
@@ -230,29 +230,27 @@ int main(void)
 }
 
 /**
- * @brief System Clock Configuration
- * @retval None
- */
+  * @brief System Clock Configuration
+  * @retval None
+  */
 void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 
   /** Supply configuration update enable
-   */
+  */
   HAL_PWREx_ConfigSupply(PWR_LDO_SUPPLY);
 
   /** Configure the main internal regulator output voltage
-   */
+  */
   __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE3);
 
-  while (!__HAL_PWR_GET_FLAG(PWR_FLAG_VOSRDY))
-  {
-  }
+  while(!__HAL_PWR_GET_FLAG(PWR_FLAG_VOSRDY)) {}
 
   /** Initializes the RCC Oscillators according to the specified parameters
-   * in the RCC_OscInitTypeDef structure.
-   */
+  * in the RCC_OscInitTypeDef structure.
+  */
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
   RCC_OscInitStruct.HSIState = RCC_HSI_DIV1;
   RCC_OscInitStruct.HSICalibrationValue = 64;
@@ -272,8 +270,10 @@ void SystemClock_Config(void)
   }
 
   /** Initializes the CPU, AHB and APB buses clocks
-   */
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2 | RCC_CLOCKTYPE_D3PCLK1 | RCC_CLOCKTYPE_D1PCLK1;
+  */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
+                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2
+                              |RCC_CLOCKTYPE_D3PCLK1|RCC_CLOCKTYPE_D1PCLK1;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
   RCC_ClkInitStruct.SYSCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_HCLK_DIV1;
@@ -289,10 +289,10 @@ void SystemClock_Config(void)
 }
 
 /**
- * @brief SPI1 Initialization Function
- * @param None
- * @retval None
- */
+  * @brief SPI1 Initialization Function
+  * @param None
+  * @retval None
+  */
 static void MX_SPI1_Init(void)
 {
 
@@ -333,13 +333,14 @@ static void MX_SPI1_Init(void)
   /* USER CODE BEGIN SPI1_Init 2 */
 
   /* USER CODE END SPI1_Init 2 */
+
 }
 
 /**
- * @brief TIM8 Initialization Function
- * @param None
- * @retval None
- */
+  * @brief TIM8 Initialization Function
+  * @param None
+  * @retval None
+  */
 static void MX_TIM8_Init(void)
 {
 
@@ -402,13 +403,14 @@ static void MX_TIM8_Init(void)
   /* USER CODE BEGIN TIM8_Init 2 */
 
   /* USER CODE END TIM8_Init 2 */
+
 }
 
 /**
- * @brief UART4 Initialization Function
- * @param None
- * @retval None
- */
+  * @brief UART4 Initialization Function
+  * @param None
+  * @retval None
+  */
 static void MX_UART4_Init(void)
 {
 
@@ -449,11 +451,12 @@ static void MX_UART4_Init(void)
   /* USER CODE BEGIN UART4_Init 2 */
 
   /* USER CODE END UART4_Init 2 */
+
 }
 
 /**
- * Enable DMA controller clock
- */
+  * Enable DMA controller clock
+  */
 static void MX_DMA_Init(void)
 {
 
@@ -464,13 +467,14 @@ static void MX_DMA_Init(void)
   /* DMA1_Stream0_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Stream0_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Stream0_IRQn);
+
 }
 
 /**
- * @brief GPIO Initialization Function
- * @param None
- * @retval None
- */
+  * @brief GPIO Initialization Function
+  * @param None
+  * @retval None
+  */
 static void MX_GPIO_Init(void)
 {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
@@ -491,10 +495,11 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, SPI12_DC_Pin | SPI2_CS_Pin | SPI12_RESET_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(GPIOB, SPI12_DC_Pin|SPI2_CS_Pin|SPI12_RESET_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOD, KEYB_COL_OUT_7_Pin | KEYB_COL_OUT_0_Pin | KEYB_COL_OUT_6_Pin | KEYB_COL_OUT_1_Pin | KEYB_COL_OUT_5_Pin | KEYB_COL_OUT_2_Pin | KEYB_COL_OUT_4_Pin | KEYB_COL_OUT_3_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOD, KEYB_COL_OUT_7_Pin|KEYB_COL_OUT_0_Pin|KEYB_COL_OUT_6_Pin|KEYB_COL_OUT_1_Pin
+                          |KEYB_COL_OUT_5_Pin|KEYB_COL_OUT_2_Pin|KEYB_COL_OUT_4_Pin|KEYB_COL_OUT_3_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : LED_ON_BOARD_Pin */
   GPIO_InitStruct.Pin = LED_ON_BOARD_Pin;
@@ -504,7 +509,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(LED_ON_BOARD_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : SPI1_FR_Pin SPI2_FR_Pin */
-  GPIO_InitStruct.Pin = SPI1_FR_Pin | SPI2_FR_Pin;
+  GPIO_InitStruct.Pin = SPI1_FR_Pin|SPI2_FR_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
@@ -523,7 +528,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(SPI2_BUSY_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : SPI12_DC_Pin SPI2_CS_Pin SPI12_RESET_Pin */
-  GPIO_InitStruct.Pin = SPI12_DC_Pin | SPI2_CS_Pin | SPI12_RESET_Pin;
+  GPIO_InitStruct.Pin = SPI12_DC_Pin|SPI2_CS_Pin|SPI12_RESET_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_MEDIUM;
@@ -536,28 +541,30 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(ROT_ENCOD_CLICK_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : ROT_ENCOD_LEFT_Pin ROT_ENCOD_RIGHT_Pin */
-  GPIO_InitStruct.Pin = ROT_ENCOD_LEFT_Pin | ROT_ENCOD_RIGHT_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pin = ROT_ENCOD_LEFT_Pin|ROT_ENCOD_RIGHT_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
   /*Configure GPIO pins : KEYB_COL_OUT_7_Pin KEYB_COL_OUT_0_Pin KEYB_COL_OUT_6_Pin KEYB_COL_OUT_1_Pin
                            KEYB_COL_OUT_5_Pin KEYB_COL_OUT_2_Pin KEYB_COL_OUT_4_Pin KEYB_COL_OUT_3_Pin */
-  GPIO_InitStruct.Pin = KEYB_COL_OUT_7_Pin | KEYB_COL_OUT_0_Pin | KEYB_COL_OUT_6_Pin | KEYB_COL_OUT_1_Pin | KEYB_COL_OUT_5_Pin | KEYB_COL_OUT_2_Pin | KEYB_COL_OUT_4_Pin | KEYB_COL_OUT_3_Pin;
+  GPIO_InitStruct.Pin = KEYB_COL_OUT_7_Pin|KEYB_COL_OUT_0_Pin|KEYB_COL_OUT_6_Pin|KEYB_COL_OUT_1_Pin
+                          |KEYB_COL_OUT_5_Pin|KEYB_COL_OUT_2_Pin|KEYB_COL_OUT_4_Pin|KEYB_COL_OUT_3_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
   /*Configure GPIO pins : KEYB_ROW_IN_7_Pin KEYB_ROW_IN_0_Pin KEYB_ROW_IN_6_NOT_WORKING_Pin KEYB_ROW_IN_1_NOTWORKING_Pin */
-  GPIO_InitStruct.Pin = KEYB_ROW_IN_7_Pin | KEYB_ROW_IN_0_Pin | KEYB_ROW_IN_6_NOT_WORKING_Pin | KEYB_ROW_IN_1_NOTWORKING_Pin;
+  GPIO_InitStruct.Pin = KEYB_ROW_IN_7_Pin|KEYB_ROW_IN_0_Pin|KEYB_ROW_IN_6_NOT_WORKING_Pin|KEYB_ROW_IN_1_NOTWORKING_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /*Configure GPIO pins : KEYB_ROW_IN_5_Pin KEYB_ROW_IN_2_Pin KEYB_ROW_IN_4_Pin KEYB_ROW_IN_3_Pin
                            KEYB_ROW_IN_1_Pin KEYB_ROW_IN_6_Pin */
-  GPIO_InitStruct.Pin = KEYB_ROW_IN_5_Pin | KEYB_ROW_IN_2_Pin | KEYB_ROW_IN_4_Pin | KEYB_ROW_IN_3_Pin | KEYB_ROW_IN_1_Pin | KEYB_ROW_IN_6_Pin;
+  GPIO_InitStruct.Pin = KEYB_ROW_IN_5_Pin|KEYB_ROW_IN_2_Pin|KEYB_ROW_IN_4_Pin|KEYB_ROW_IN_3_Pin
+                          |KEYB_ROW_IN_1_Pin|KEYB_ROW_IN_6_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
@@ -882,7 +889,7 @@ int _mainWaveShare(void)
 #endif
 /* USER CODE END 4 */
 
-/* MPU Configuration */
+ /* MPU Configuration */
 
 void MPU_Config(void)
 {
@@ -892,7 +899,7 @@ void MPU_Config(void)
   HAL_MPU_Disable();
 
   /** Initializes and configures the Region and the memory to be protected
-   */
+  */
   MPU_InitStruct.Enable = MPU_REGION_ENABLE;
   MPU_InitStruct.Number = MPU_REGION_NUMBER0;
   MPU_InitStruct.BaseAddress = 0x0;
@@ -908,12 +915,13 @@ void MPU_Config(void)
   HAL_MPU_ConfigRegion(&MPU_InitStruct);
   /* Enables the MPU */
   HAL_MPU_Enable(MPU_PRIVILEGED_DEFAULT);
+
 }
 
 /**
- * @brief  This function is executed in case of error occurrence.
- * @retval None
- */
+  * @brief  This function is executed in case of error occurrence.
+  * @retval None
+  */
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
@@ -925,14 +933,14 @@ void Error_Handler(void)
   /* USER CODE END Error_Handler_Debug */
 }
 
-#ifdef USE_FULL_ASSERT
+#ifdef  USE_FULL_ASSERT
 /**
- * @brief  Reports the name of the source file and the source line number
- *         where the assert_param error has occurred.
- * @param  file: pointer to the source file name
- * @param  line: assert_param error line source number
- * @retval None
- */
+  * @brief  Reports the name of the source file and the source line number
+  *         where the assert_param error has occurred.
+  * @param  file: pointer to the source file name
+  * @param  line: assert_param error line source number
+  * @retval None
+  */
 void assert_failed(uint8_t *file, uint32_t line)
 {
   /* USER CODE BEGIN 6 */
