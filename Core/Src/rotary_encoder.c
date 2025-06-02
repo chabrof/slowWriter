@@ -6,16 +6,146 @@
 
 uint32_t rot_encod_left_lastTick = 0;
 uint32_t rot_encod_right_lastTick = 0;
-uint8_t rotary_encoder_left_cycle_state = 0; // 0: NOT_BEGAN 1: BEGAN 2: COMPLETE
-uint8_t rotary_encoder_right_cycle_state = 0; // 0: NOT_BEGAN 1: BEGAN 2: COMPLETE
+uint32_t rotary_encoder_left_cycle_tstp = 0; // 0: NOT_BEGAN positive int : BEGAN CYCLE tstp
+uint32_t rotary_encoder_right_cycle_tstp = 0; // 0: NOT_BEGAN positive int : BEGAN CYCLE tstp
 // Switch scan
 uint32_t lastDebounceTime = 0;
 GPIO_PinState lastButtonState = GPIO_PIN_SET;
 GPIO_PinState buttonState = GPIO_PIN_SET;
 
+#define ROTARY_LOG_SIZE 32
+volatile uint8_t rotary_log[ROTARY_LOG_SIZE];
+volatile uint8_t rotary_log_head = 0;
+volatile uint8_t rotary_log_tail = 0;
+// Buffer for rotary encoder events
+#define ROTARY_L_END 1
+#define ROTARY_R_END 2
+#define ROTARY_L_BEGIN 3
+#define ROTARY_R_BEGIN 4
+
+#define ROTARY_L_LINE_FALL 3
+#define ROTARY_R_LINE_FALL 4
+#define ROTARY_BAD_L_END 5
+#define ROTARY_BAD_R_END 6
+#define ROTARY_BAD_L_BEGIN 7
+#define ROTARY_BAD_R_BEGIN 8
+#define ROTARY_L_CYCLE_OUT_OF_TIME 9
+#define ROTARY_R_CYCLE_OUT_OF_TIME 10
+
+#define ROTARY_LEFT_CYCLE_BEGIN 11
+#define ROTARY_RIGHT_CYCLE_BEGIN 12
+#define ROTARY_LEFT_CYCLE_1 13
+#define ROTARY_RIGHT_CYCLE_1 14
+#define ROTARY_LEFT_CYCLE_2 15
+#define ROTARY_RIGHT_CYCLE_2 16
+#define ROTARY_LEFT_CYCLE_END 17
+#define ROTARY_RIGHT_CYCLE_END 18
+#define ROTARY_LEFT_CYCLE_SHORT_END 19
+#define ROTARY_RIGHT_CYCLE_SHORT_END 20
+
+#define ROTARY_LEFT_CYCLE_ERROR 21
+#define ROTARY_RIGHT_CYCLE_ERROR 22 
+// Fonction à appeler dans l'ISR pour logger un événement
+void rotary_log_event(uint8_t event)
+{
+    uint8_t next_head = (rotary_log_head + 1) % ROTARY_LOG_SIZE;
+    if (next_head != rotary_log_tail) { // Buffer not full
+        rotary_log[rotary_log_head] = event;
+        rotary_log_head = next_head;
+    }
+    // Sinon, on ignore l'événement (overflow)
+}
+
+void rotary_process_log(void)
+{
+  while (rotary_log_tail != rotary_log_head) {
+    uint8_t event = rotary_log[rotary_log_tail];
+    rotary_log_tail = (rotary_log_tail + 1) % ROTARY_LOG_SIZE;
+    switch(event) {
+      case ROTARY_L_END:
+        printf("==> L \r\n");
+        break;
+      case ROTARY_R_END:
+        printf("==> R\r\n");
+        break;
+      case ROTARY_L_BEGIN:
+        printf("L begin\r\n");
+        break;
+      case ROTARY_R_BEGIN:
+        printf("R begin\r\n");
+        break;
+      case ROTARY_BAD_L_END:
+        printf("L BAD\r\n");
+        break;
+      case ROTARY_BAD_R_END:
+        printf("R BAD\r\n");
+        break;
+      case ROTARY_BAD_L_BEGIN:
+        printf("L BEGIN BAD\r\n");
+        break;
+      case ROTARY_BAD_R_BEGIN:
+        printf("R BEGIN BAD\r\n");
+        break;
+      case ROTARY_L_CYCLE_OUT_OF_TIME:
+        printf("L OUT OF TIME\r\n\r\n");
+        break;
+      case ROTARY_R_CYCLE_OUT_OF_TIME:
+        printf("R OUT OF TIME\r\n\r\n");
+        break;
+      case ROTARY_LEFT_CYCLE_BEGIN:
+        printf("Left cycle begin\r\n");
+        break;
+      case ROTARY_RIGHT_CYCLE_BEGIN:
+        printf("Right cycle begin\r\n");
+        break;  
+      case ROTARY_LEFT_CYCLE_1:
+        printf("Left cycle 1\r\n");
+        break;      
+      case ROTARY_RIGHT_CYCLE_1:    
+        printf("Right cycle 1\r\n");
+        break;    
+      case ROTARY_LEFT_CYCLE_2:
+        printf("Left cycle 2\r\n");
+        break;  
+      case ROTARY_RIGHT_CYCLE_2:
+        printf("Right cycle 2\r\n\r\n");
+        break;    
+      case ROTARY_LEFT_CYCLE_END:
+        printf("         =>  Left ! \r\n\r\n");
+        break;  
+      case ROTARY_RIGHT_CYCLE_END:
+        printf("         => Right !\r\n\r\n");
+        break;  
+      case ROTARY_LEFT_CYCLE_SHORT_END:
+        printf("Left cycle short end\r\n\r\n");
+        break;
+      case ROTARY_RIGHT_CYCLE_SHORT_END:
+        printf("Right cycle short end\r\n");
+        break;
+      case ROTARY_LEFT_CYCLE_ERROR: 
+        printf("  ** Left cycle error **\r\n\r\n");
+        break;    
+      case ROTARY_RIGHT_CYCLE_ERROR:
+        printf("  ** Right cycle error **\r\n\r\n");
+        break;  
+      default:
+        printf("Action inconnue: %d\r\n", event);
+    }
+  }
+}
+#ifdef DOUBLE_TIME_ROTARY_ENCODER_DEBOUNCE
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
   scanRotaryEncoder(GPIO_Pin);
+}
+#endif
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  if (htim->Instance == TIM2)
+  {
+    scanRotaryEncoder(0);
+  }
 }
 
 void scanRotaryEncoderSwitch()
@@ -45,70 +175,6 @@ void scanRotaryEncoderSwitch()
 
   lastButtonState = currentReading;
 }
-
-#ifdef __FULL_CYCLE_DEBOUNCE
-// Variables
-int etatPrecedentLigneCLK; // Cette variable nous permettra de stocker le dernier état de la ligne CLK, afin de le comparer à l'actuel
-int etatPrecedentLigneDT;  // Cette variable nous permettra de stocker le dernier état de la ligne DT, afin de le comparer à l'actuel
-
-int compteur = 0; // Cette variable nous permettra de compter combien de crans ont été parcourus, sur l'encodeur
-                  // (sachant que nous compterons dans le sens horaire, et décompterons dans le sens antihoraire)
-void init()
-{
-  // Initialisation de la liaison série (arduino nano <-> PC)
-
-  // Petite pause pour laisser le temps aux signaux de se stabiliser
-  delay(200);
-
-  // Mémorisation des valeurs initiales des lignes SW/CLK/DT, au démarrage du programme
-  // etatPrecedentLigneSW  = digitalRead(pinArduinoRaccordementSignalSW);
-  etatPrecedentLigneCLK = digitalRead(pinArduinoRaccordementSignalCLK);
-  etatPrecedentLigneDT = digitalRead(pinArduinoRaccordementSignalDT);
-
-  // Affichage de la valeur initiale du compteur, sur le moniteur série
-  printF("Valeur initiale du compteur = %i", compteur);
-}
-
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
-{
-
-  // Lecture des lignes CLK et DT, issue du KY-040, arrivant sur l'arduino
-  int etatActuelDeLaLigneCLK = digitalRead(pinArduinoRaccordementSignalCLK);
-  int etatActuelDeLaLigneDT = digitalRead(pinArduinoRaccordementSignalDT);
-
-  // ************************
-  // * CAS : Incrémentation *
-  // ************************
-  // Si CLK = 1 et DT = 0, et que l'ancienCLK = 0 et ancienDT = 1, alors le bouton a été tourné d'un cran vers la droite (sens horaire, donc incrémentation)
-  if ((etatActuelDeLaLigneCLK == HIGH) && (etatActuelDeLaLigneDT == LOW) && (etatPrecedentLigneCLK == LOW) && (etatPrecedentLigneDT == HIGH))
-  {
-
-    // Alors on incrémente le compteur
-    compteur++;
-
-    // Et on affiche ces infos sur le moniteur série
-    printF("Sens = horaire | Valeur du compteur = %i ", compteur);
-  }
-
-  // ************************
-  // * CAS : Décrémentation *
-  // ************************
-  // Si CLK = 1 et DT = 1, et que l'ancienCLK = 0 et ancienDT = 0, alors le bouton a été tourné d'un cran vers la gauche (sens antihoraire, donc décrémentation)
-  if ((etatActuelDeLaLigneCLK == HIGH) && (etatActuelDeLaLigneDT == HIGH) && (etatPrecedentLigneCLK == LOW) && (etatPrecedentLigneDT == LOW))
-  {
-
-    // Alors on décrémente le compteur
-    compteur--;
-
-    // Et on affiche ces infos sur le moniteur série
-    printf("Sens = antihoraire | Valeur du compteur = %i", compteur);
-  }
-
-  // Et on mémorise ces états actuels comme étant "les nouveaux anciens", pour le "tour suivant" !
-  etatPrecedentLigneCLK = etatActuelDeLaLigneCLK;
-  etatPrecedentLigneDT = etatActuelDeLaLigneDT;
-}
-#endif
 
 #ifdef __CLASSIC_DEBOUNCE
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
@@ -170,60 +236,173 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 void scanRotaryEncoder(uint16_t GPIO_Pin)
 {
   static uint8_t otherPinState;
+  static uint8_t pinState;
+  uint32_t now = HAL_GetTick();
+  printf("Now: %lu, lastL: %lu, lastR: %lu \r\n", now, rot_encod_left_lastTick, rot_encod_right_lastTick);
   if (GPIO_Pin == ROT_ENCOD_LEFT_Pin)
   {
-    uint32_t now = HAL_GetTick();
+    pinState = HAL_GPIO_ReadPin(ROT_ENCOD_LEFT_GPIO_Port, ROT_ENCOD_LEFT_Pin);
+    otherPinState = HAL_GPIO_ReadPin(ROT_ENCOD_RIGHT_GPIO_Port, ROT_ENCOD_RIGHT_Pin);
+
     if (now - rot_encod_left_lastTick < ROT_ENCOD_DEBOUNCE_DELAY)
     {
-      printf("Debounce !\r\n");
       rot_encod_left_lastTick = now;
       return; // Ignore interruption if too quick
     }
+    rotary_log_event(ROTARY_L_LINE_FALL);
     rot_encod_left_lastTick = now;
-    otherPinState = HAL_GPIO_ReadPin(ROT_ENCOD_RIGHT_GPIO_Port, ROT_ENCOD_RIGHT_Pin);
 
-    if (rotary_encoder_right_cycle_state == 1) {
-      //printf("RIGHT ROTARY !\r\n");
-      if (otherPinState == GPIO_PIN_RESET) {
-        printf("RR\r\n");
-      }
+    if (rotary_encoder_right_cycle_tstp > 0) {
+      //if (now - rotary_encoder_right_cycle_tstp < ROT_ENCOD_CYCLE_MAX_DELAY) {
+        if (otherPinState == GPIO_PIN_RESET) {
+          rotary_log_event(ROTARY_R_END);
+          // End of cycle
+          rotary_encoder_right_cycle_tstp = 0;
+        } else {
+          rotary_log_event(ROTARY_BAD_R_END);
+        }
+
       //} else {
-      //  printf(" /!\\ Error in RIGHT ROTARY CYCLE !");
+      //  rotary_log_event(ROTARY_R_CYCLE_OUT_OF_TIME);
       //}
-      // End of cycle
-      rotary_encoder_right_cycle_state = 0;
-    } else if (otherPinState == GPIO_PIN_SET)
-    {
-      rotary_encoder_left_cycle_state = 1;
+    } else {
+      if (otherPinState == GPIO_PIN_SET) {
+        rotary_log_event(ROTARY_L_BEGIN);
+        rotary_encoder_left_cycle_tstp = now;
+      } else {
+        rotary_log_event(ROTARY_BAD_L_BEGIN);
+      }
     }
   }
 
   if (GPIO_Pin == ROT_ENCOD_RIGHT_Pin)
   {
-    uint32_t now = HAL_GetTick();
+    pinState = HAL_GPIO_ReadPin(ROT_ENCOD_RIGHT_GPIO_Port, ROT_ENCOD_RIGHT_Pin);
+    otherPinState = HAL_GPIO_ReadPin(ROT_ENCOD_LEFT_GPIO_Port, ROT_ENCOD_LEFT_Pin);
+
     if (now - rot_encod_right_lastTick < ROT_ENCOD_DEBOUNCE_DELAY)
     {
-      printf("Debounce !\r\n");
+      // printf("  Debounce R %lu %lu %lu %i !\r\n", now, rot_encod_right_lastTick, now - rot_encod_right_lastTick, ROT_ENCOD_DEBOUNCE_DELAY);
       rot_encod_right_lastTick = now;
       return; // Ignore interruption if too quick
     }
     rot_encod_right_lastTick = now;
-    otherPinState = HAL_GPIO_ReadPin(ROT_ENCOD_LEFT_GPIO_Port, ROT_ENCOD_LEFT_Pin);
+    rotary_log_event(ROTARY_R_LINE_FALL);
 
-    if (rotary_encoder_left_cycle_state == 1) {
-      // printf("LEFT ROTARY !\r\n");
-      if (otherPinState == GPIO_PIN_RESET) {
-        printf("LR\r\n");
-      }
-      //else {
-      //  printf(" /!\\ Error in LEFT ROTARY CYCLE !");
+    if (rotary_encoder_left_cycle_tstp > 0) {
+      //if (now - rotary_encoder_left_cycle_tstp < ROT_ENCOD_CYCLE_MAX_DELAY) {
+        if (otherPinState == GPIO_PIN_RESET) {
+          rotary_log_event(ROTARY_L_END);
+          // End of cycle
+          rotary_encoder_left_cycle_tstp = 0;
+        } else {
+          rotary_log_event(ROTARY_BAD_L_END);
+        }
+
+      //} else {
+      //  rotary_log_event(ROTARY_L_CYCLE_OUT_OF_TIME);
       //}
-      // End of cycle
-      rotary_encoder_left_cycle_state = 0;
-    } else if (otherPinState == GPIO_PIN_SET)
-    {
-      rotary_encoder_right_cycle_state = 1;
+    } else {
+      if (otherPinState == GPIO_PIN_SET) {
+        rotary_log_event(ROTARY_R_BEGIN);
+        rotary_encoder_right_cycle_tstp = now;
+      } else {
+        rotary_log_event(ROTARY_BAD_R_BEGIN);
+      }
     }
+    //printf("</droit>\r\n");
+  }
+}
+#endif
+
+#ifdef DOUBLE_TIME_ROTARY_ENCODER_TIMER
+uint8_t leftCycleState = 0;
+uint32_t leftCycleTstp = 0;
+uint8_t rightCycleState = 0;
+uint32_t rightCycleTstp = 0;
+
+uint8_t leftCycleNb = 0;
+uint8_t rightCycleNb = 0;
+
+void scanRotaryEncoder(uint16_t GPIO_Pin_dummy)
+{
+  uint8_t leftPinState;
+  uint8_t rightPinState;
+  uint32_t now = HAL_GetTick();
+
+
+  leftPinState = HAL_GPIO_ReadPin(ROT_ENCOD_LEFT_GPIO_Port, ROT_ENCOD_LEFT_Pin);
+  rightPinState = HAL_GPIO_ReadPin(ROT_ENCOD_RIGHT_GPIO_Port, ROT_ENCOD_RIGHT_Pin);
+  uint8_t leftAndRightPinState = (leftPinState << 1) | rightPinState;
+  //printf("Now: %lu %i %i %i \r\n", now, leftAndRightPinState, leftCycleNb, rightCycleNb);
+  if (leftCycleState == 0 && rightCycleState == 0 && leftAndRightPinState == 0b01) {
+    rotary_log_event(ROTARY_LEFT_CYCLE_BEGIN);
+    leftCycleTstp = now;
+    leftCycleState = 1; // Cycle began
+  }
+  if (leftCycleState == 1) {
+    if (leftAndRightPinState == 0b00) {
+      rotary_log_event(ROTARY_LEFT_CYCLE_1);
+      leftCycleState = 2; // Second step of left cycle
+    }
+    if (leftAndRightPinState == 0b11) { // Error state
+      rotary_log_event(ROTARY_LEFT_CYCLE_ERROR);
+      leftCycleState = 0; // Reset state
+      leftCycleTstp = 0; // Reset timestamp
+    }
+  }
+
+  if (leftCycleState == 2) {
+    if (leftAndRightPinState == 0b10) {
+      rotary_log_event(ROTARY_LEFT_CYCLE_2);
+      leftCycleState = 3; // Third step of left cycle
+    }
+    if (leftAndRightPinState == 0b11) {
+      rotary_log_event(ROTARY_LEFT_CYCLE_SHORT_END);
+      leftCycleState = 0; // Cycle ended
+      leftCycleTstp = 0; // Reset timestamp
+    }
+  }
+  if (leftCycleState == 3 && leftAndRightPinState == 0b11) {
+    rotary_log_event(ROTARY_LEFT_CYCLE_END);
+    leftCycleState = 0; // Cycle ended
+    leftCycleTstp = 0; // Reset timestamp
+  }
+
+  if (leftCycleState == 0 && rightCycleState == 0) {
+    if (leftAndRightPinState == 0b10) {
+      rotary_log_event(ROTARY_RIGHT_CYCLE_BEGIN);
+      rightCycleTstp = now;
+      rightCycleState = 1; // Cycle began
+    }
+  }
+  if (rightCycleState == 1) {
+    if (leftAndRightPinState == 0b00) {
+      rotary_log_event(ROTARY_RIGHT_CYCLE_1);
+      rightCycleState = 2; // Second step of right cycle  
+    }
+    
+    if (leftAndRightPinState == 0b11) { // Error state
+      rotary_log_event(ROTARY_RIGHT_CYCLE_ERROR);
+      rightCycleState = 0; // Reset state
+      rightCycleTstp = 0; // Reset timestamp
+    }
+  } 
+  if (rightCycleState == 2) {
+    if (leftAndRightPinState == 0b01) {
+      rotary_log_event(ROTARY_RIGHT_CYCLE_2);
+      rightCycleState = 3; // Third step of right cycle
+    }
+    if (leftAndRightPinState == 0b11) { // Kind of Error state..but we accept it
+      rotary_log_event(ROTARY_RIGHT_CYCLE_SHORT_END);
+      rightCycleState = 0; // Cycle ended
+      rightCycleTstp = 0; // Reset timestamp
+    }
+  }
+  if (rightCycleState == 3 && leftAndRightPinState == 0b11) {
+    rotary_log_event(ROTARY_RIGHT_CYCLE_END);
+    rightCycleState = 0; // Cycle ended
+    rightCycleTstp = 0; // Reset timestamp
   }
 }
 #endif

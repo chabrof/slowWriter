@@ -1,0 +1,54 @@
+Je souhaiterais disposer d un moyen de loguer les actions effectuees dans une callbakc d' interruption, il me semble que le printf n est pas indique car il bloquerait longtemps l interruption. Je pensais utiliser un tableau circulaire et assigner un entier 8 bit et l ajouter au tableau, ensuite dans la fonction main je lirais regulierement le tableau et à l aide d un switch case je ferai les printf du nom des actions.
+
+Copilot :
+Votre raisonnement est correct : il ne faut pas faire de printf dans une callback d’interruption, car cela peut bloquer le système. Utiliser un buffer circulaire (ring buffer) pour logger les événements est une bonne solution.
+Voici un exemple simple d’implémentation :
+
+
+// ...existing code...
+
+#define ROTARY_LOG_SIZE 32
+
+volatile uint8_t rotary_log[ROTARY_LOG_SIZE];
+volatile uint8_t rotary_log_head = 0;
+volatile uint8_t rotary_log_tail = 0;
+
+// Fonction à appeler dans l'ISR pour logger un événement
+void rotary_log_event(uint8_t event)
+{
+    uint8_t next_head = (rotary_log_head + 1) % ROTARY_LOG_SIZE;
+    if (next_head != rotary_log_tail) { // Buffer not full
+        rotary_log[rotary_log_head] = event;
+        rotary_log_head = next_head;
+    }
+    // Sinon, on ignore l'événement (overflow)
+}
+
+// À placer dans la boucle principale pour traiter les logs
+void rotary_process_log(void)
+{
+    while (rotary_log_tail != rotary_log_head) {
+        uint8_t event = rotary_log[rotary_log_tail];
+        rotary_log_tail = (rotary_log_tail + 1) % ROTARY_LOG_SIZE;
+        switch(event) {
+            case 1:
+                printf("Action: Rotation gauche\r\n");
+                break;
+            case 2:
+                printf("Action: Rotation droite\r\n");
+                break;
+            case 3:
+                printf("Action: Click\r\n");
+                break;
+            // Ajoutez d'autres cas selon vos besoins
+            default:
+                printf("Action inconnue: %d\r\n", event);
+        }
+    }
+}
+
+Utilisation dans l’ISR : Remplacez vos printf dans l’ISR par des appels à rotary_log_event(1), rotary_log_event(2), etc.
+
+Dans le main loop : Appelez régulièrement rotary_process_log(); pour afficher les logs.
+
+Cela garantit que l’ISR reste très rapide et que les affichages sont faits en tâche de fond.
