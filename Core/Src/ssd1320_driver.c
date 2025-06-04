@@ -3,19 +3,21 @@
 #include "stdio.h"
 
 extern SPI_HandleTypeDef hspi1;
-volatile uint8_t dma_buffer_state = 0;
+volatile uint8_t dma_transfer_state = 0;
 
 uint8_t frame_buffer_a[SSD1320_BUF_SIZE];
 uint8_t frame_buffer_b[SSD1320_BUF_SIZE];
 uint8_t *ssd1320_left_buffer = NULL;
+uint8_t left_buffer_sending_status = BUFFER_NOT_SENT;
 uint8_t *ssd1320_right_buffer = NULL;
+uint8_t right_buffer_sending_status = BUFFER_NOT_SENT;
 
 void SSD1320_Reset(void)
 {
     SSD1320_RST_LOW();
-    HAL_Delay(200);
+    HAL_Delay(100);
     SSD1320_RST_HIGH();
-    HAL_Delay(200);
+    HAL_Delay(100);
 }
 
 void SSD1320_SendCommandLeft(uint8_t cmd)
@@ -25,15 +27,6 @@ void SSD1320_SendCommandLeft(uint8_t cmd)
     HAL_SPI_Transmit(&hspi1, &cmd, 1, HAL_MAX_DELAY);
     SSD1320_CS1_HIGH();
 }
-/*
-void SSD1320_SendDataLeft(uint8_t* data, size_t len)
-{
-    SSD1320_DC_DATA();
-    SSD1320_CS1_LOW();
-    HAL_SPI_Transmit_DMA(&hspi1, data, len);
-    // HAL_SPI_Transmit(&hspi1, data, len, HAL_MAX_DELAY);
-    //SSD1320_CS1_HIGH();
-}*/
 
 void SSD1320_SendCommandRight(uint8_t cmd)
 {
@@ -43,16 +36,6 @@ void SSD1320_SendCommandRight(uint8_t cmd)
     SSD1320_CS2_HIGH();
 }
 
-/*
-void SSD1320_SendDataRight(uint8_t* data, size_t len)
-{
-    SSD1320_DC_DATA();
-    SSD1320_CS2_LOW();
-    HAL_SPI_Transmit_DMA(&hspi1, data, len);
-    //HAL_SPI_Transmit(&hspi1, data, len, HAL_MAX_DELAY);
-    //SSD1320_CS2_HIGH();
-}*/
-
 void SSD1320_SendCommandBoth(uint8_t cmd) {
   SSD1320_DC_CMD();
   SSD1320_CS1_LOW();
@@ -61,49 +44,7 @@ void SSD1320_SendCommandBoth(uint8_t cmd) {
   SSD1320_CS1_HIGH();
   SSD1320_CS2_HIGH();
 }
-/*
-void S1320_SendDataBoth(uint8_t* data, size_t len)
-{
-    SSD1320_DC_DATA();
-    SSD1320_CS1_LOW();
-    SSD1320_CS2_LOW();
-    HAL_SPI_Transmit_DMA(&hspi1, data, len);
-    //HAL_SPI_Transmit(&hspi1, data, len, HAL_MAX_DELAY);
-    //SSD1320_CS1_HIGH();
-    //SSD1320_CS2_HIGH();
-}
-*/
 
-// End of DMA transfert cbk :
-void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi) {
-  printf("DMA cbk. (%i)\r\n", dma_buffer_state);
-  if (hspi->Instance == SPI1) {
-    if (dma_buffer_state == 0) {
-      SSD1320_CS1_HIGH();
-      SSD1320_CS2_HIGH();
-      return;
-    }
-    if (dma_buffer_state == 1) {
-      dma_buffer_state = 2;
-      SSD1320_CS1_HIGH();
-      printf("Transmission droite %i \r\n", SSD1320_BUF_SIZE);
-      //HAL_Delay (500);
-      SSD1320_DC_DATA();
-      SSD1320_CS2_LOW();
-      if (HAL_SPI_GetState(&hspi1) != HAL_SPI_STATE_READY) {
-        printf("** ERROR ** - SPI Non Pret !!  \r\n");
-      }
-      HAL_SPI_Transmit_DMA(&hspi1, ssd1320_right_buffer, SSD1320_BUF_SIZE);
-      return;
-    }
-    if (dma_buffer_state == 2) {
-      dma_buffer_state = 0;
-      SSD1320_CS1_HIGH();
-      SSD1320_CS2_HIGH();
-      return;
-    }
-  }
-}
 
 void SSD1320_SetColumnAddressLeft(uint8_t start, uint8_t end)
 {
@@ -187,14 +128,60 @@ void SSD1320_SetAddress(uint16_t x1,uint16_t x2,uint16_t y1,uint16_t y2)
   }*/
 }
 
-void SSD1320_SendBuffers()
+
+// End of DMA transfert cbk :
+void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi) {
+  printf("DMA cbk. (%i)\r\n", dma_transfer_state);
+  if (hspi->Instance == SPI1) {
+    if (dma_transfer_state == DMA_TRANSFER_NONE) {\
+      // Not very useful, but just in case :
+      SSD1320_CS1_HIGH();
+      SSD1320_CS2_HIGH();
+      return;
+    }
+    if (dma_transfer_state == DMA_TRANSFER_LEFT) {
+      dma_transfer_state = DMA_TRANSFER_NONE;
+      SSD1320_CS1_HIGH();
+      left_buffer_sending_status = BUFFER_SENT;
+      printf("Transmission gauche terminee %i \r\n", SSD1320_BUF_SIZE);
+      return;
+    }
+    if (dma_transfer_state == DMA_TRANSFER_RIGHT) {
+      dma_transfer_state = DMA_TRANSFER_NONE;
+      SSD1320_CS2_HIGH();
+      right_buffer_sending_status = BUFFER_SENT;
+      printf("Transmission droite terminee %i \r\n", SSD1320_BUF_SIZE);
+      return;
+    }
+  }
+}
+
+void SSD1320_SendBuffer_Left()
 {
-  dma_buffer_state = 1;
+  if (left_buffer_sending_status == BUFFER_SENT) {
+    return;
+  } 
+  while (dma_transfer_state != DMA_TRANSFER_NONE); // Attendre que le DMA soit inactif
+  dma_transfer_state = DMA_TRANSFER_LEFT;
   printf("Transmission gauche %i \r\n", SSD1320_BUF_SIZE);
   SSD1320_DC_DATA();
   SSD1320_CS1_LOW();
   HAL_SPI_Transmit_DMA(&hspi1, ssd1320_left_buffer, SSD1320_BUF_SIZE);
 }
+
+void SSD1320_SendBuffer_Left()
+{
+  if (right_buffer_sending_status == BUFFER_SENT) {
+    return;
+  } 
+  while (dma_transfer_state != DMA_TRANSFER_NONE); // Attendre que le DMA soit inactif
+  dma_transfer_state = DMA_TRANSFER_RIGHT;
+  printf("Transmission droite %i \r\n", SSD1320_BUF_SIZE);
+  SSD1320_DC_DATA();
+  SSD1320_CS2_LOW();
+  HAL_SPI_Transmit_DMA(&hspi1, ssd1320_right_buffer, SSD1320_BUF_SIZE);
+}
+
 
 void SSD1320_Init(void)
 {

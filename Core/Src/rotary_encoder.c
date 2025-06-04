@@ -133,12 +133,7 @@ void rotary_process_log(void)
     }
   }
 }
-#ifdef DOUBLE_TIME_ROTARY_ENCODER_DEBOUNCE
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
-{
-  scanRotaryEncoder(GPIO_Pin);
-}
-#endif
+
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
@@ -329,7 +324,6 @@ void scanRotaryEncoder(uint16_t GPIO_Pin_dummy)
   uint8_t leftPinState;
   uint8_t rightPinState;
   uint32_t now = HAL_GetTick();
-
 
   leftPinState = HAL_GPIO_ReadPin(ROT_ENCOD_LEFT_GPIO_Port, ROT_ENCOD_LEFT_Pin);
   rightPinState = HAL_GPIO_ReadPin(ROT_ENCOD_RIGHT_GPIO_Port, ROT_ENCOD_RIGHT_Pin);

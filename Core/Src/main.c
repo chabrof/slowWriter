@@ -19,6 +19,8 @@
 #include <stm32h7xx_hal_pwr_ex.h>
 #include <stm32h723xx.h>
 #include "test.h"
+
+#include <stdbool.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -106,6 +108,32 @@ PUTCHAR_PROTOTYPE
   return ch;
 }
 
+volatile bool fr1_flag = false; // Drapeau pour FR1
+volatile bool fr2_flag = false; // Drapeau pour FR2
+
+#ifdef DOUBLE_TIME_ROTARY_ENCODER_DEBOUNCE
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+  if (GPIO_Pin == SPI2_FR_Pin) {
+    printf("FR1\r\n");
+  }
+  if (GPIO_Pin == SPI2_FR_Pin) {
+    printf("FR2\r\n");
+  }
+  scanRotaryEncoder(GPIO_Pin);
+}
+#else
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+  if (GPIO_Pin == SPI2_FR_Pin) {
+    fr1_flag = true; 
+  }
+  if (GPIO_Pin == SPI2_FR_Pin) {
+    fr2_flag = true; 
+  }
+}
+#endif
+
 void App_DrawUI(void)
 {
   ClearBuffers();
@@ -181,11 +209,9 @@ int main(void)
 #ifdef __WAVESHARE_EPAPER
   _mainWaveShare();
 #endif
-  HAL_Delay(1000);
   printf("Screen init : \r\n");
   SSD1320_Init();
 
-  HAL_Delay(1000);
   App_DrawUI();
   test_cpp_class();
   /* USER CODE END 2 */
@@ -212,8 +238,7 @@ int main(void)
     // HAL_Delay (1000);
     // </blink>
     static uint32_t last = 0;
-    if (HAL_GetTick() - last > 10)
-    {
+    if (HAL_GetTick() - last > 10) {
       last = HAL_GetTick();
 
       KeysState_t keysState = getKeysState();
@@ -231,8 +256,17 @@ int main(void)
       }
     }
 
-    rotary_process_log();
+    if (fr1_flag) {
+      fr1_flag = false;
+      SSD1320_SendBuffer_Left();
+    }
 
+    if (fr2_flag) {
+      fr2_flag = false;
+      SSD1320_SendBuffer_Right();
+    }
+
+    rotary_process_log();
   }
   /* USER CODE END 3 */
 }
@@ -319,7 +353,7 @@ static void MX_SPI1_Init(void)
   hspi1.Init.CLKPolarity = SPI_POLARITY_HIGH;
   hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_256;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
   hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -563,8 +597,8 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pins : SPI1_FR_Pin SPI2_FR_Pin */
   GPIO_InitStruct.Pin = SPI1_FR_Pin|SPI2_FR_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /*Configure GPIO pin : SPI1_CS_Pin */
@@ -623,6 +657,12 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(SPI1_FR_EXTI_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(SPI1_FR_EXTI_IRQn);
+
+  HAL_NVIC_SetPriority(SPI2_FR_EXTI_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(SPI2_FR_EXTI_IRQn);
+
   HAL_NVIC_SetPriority(ROT_ENCOD_LEFT_EXTI_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(ROT_ENCOD_LEFT_EXTI_IRQn);
 

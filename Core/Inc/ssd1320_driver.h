@@ -23,12 +23,20 @@
 #define OLED_CMD  0 //COMMAND
 #define OLED_DATA 1 //DATA
 
+#define DMA_TRANSFER_NONE 0
+#define DMA_TRANSFER_LEFT 1
+#define DMA_TRANSFER_RIGHT 2
+
+#define BUFFER_NOT_SENT = 0
+#define BUFFER_SENT = 1
+
+
 void SSD1320_Init(void);
 void SSD1320_SendCommandLeft(uint8_t cmd);
 void SSD1320_SendCommandRight(uint8_t cmd);
 void SSD1320_SendCommandBoth(uint8_t cmd);
-void SSD1320_SendData(uint8_t* data, size_t len);
-void SSD1320_SendBuffers();
+void SSD1320_SendBuffer_Left();
+void SSD1320_SendBuffer_Right();
 void OLED_Clear(uint16_t x1,uint16_t y1,uint16_t x2,uint16_t y2,uint8_t color);
 void SSD1320_SetAddress(uint16_t x1,uint16_t x2,uint16_t y1,uint16_t y2);
 
