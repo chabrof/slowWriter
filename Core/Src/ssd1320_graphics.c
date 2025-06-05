@@ -61,8 +61,21 @@ void DrawText4BPP(const char* text, uint16_t x, uint16_t y, uint8_t color)
   }
 }
 
+static uint16_t bounding_box_x_min = SSD1320_WIDTH;
+static uint16_t bounding_box_x_max = 0;
+static uint16_t bounding_box_y_min = SSD1320_HEIGHT;
+static uint16_t bounding_box_y_max = 0;
+
+void UpdateBoundingBox(uint16_t x, uint16_t y, uint16_t w, uint16_t h) {
+    if (x < bounding_box_x_min) bounding_box_x_min = x;
+    if (x + w - 1 > bounding_box_x_max) bounding_box_x_max = x + w - 1;
+    if (y < bounding_box_y_min) bounding_box_y_min = y;
+    if (y + h - 1 > bounding_box_y_max) bounding_box_y_max = y + h - 1;
+}
+
 void DrawRect4BPP(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint8_t color, uint8_t filled)
 {
+  UpdateBoundingBox(x, y, w, h);
   for (uint16_t i = 0; i < h; i++) {
     for (uint16_t j = 0; j < w; j++) {
       if (filled || i == 0 || i == h-1 || j == 0 || j == w-1) {
@@ -70,6 +83,41 @@ void DrawRect4BPP(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint8_t color,
       }
     }
   }
+}
+
+void ClearRect4BPP(uint16_t x, uint16_t y, uint16_t w, uint16_t h) {
+  UpdateBoundingBox(x, y, w, h);
+  for (uint16_t i = 0; i < h; i++) {
+    for (uint16_t j = 0; j < w; j++) {
+      SetPixel4BPP(x + j, y + i, 0x0); // Efface en mettant la couleur à 0 (noir)
+    }
+  }
+}
+
+void MoveRect4BPP(uint16_t old_x, uint16_t old_y, uint16_t w, uint16_t h, uint16_t new_x, uint16_t new_y, uint8_t color, uint8_t filled) {
+  // Effacer l'ancienne position
+  ClearRect4BPP(old_x, old_y, w, h);
+
+  // Dessiner à la nouvelle position
+  DrawRect4BPP(new_x, new_y, w, h, color, filled);
+
+  // Agrandir la bounding box pour inclure les deux zones
+  UpdateBoundingBox(old_x, old_y, w, h);
+  UpdateBoundingBox(new_x, new_y, w, h);
+}
+
+void ResetBoundingBox() {
+    bounding_box_x_min = SSD1320_WIDTH;
+    bounding_box_x_max = 0;
+    bounding_box_y_min = SSD1320_HEIGHT;
+    bounding_box_y_max = 0;
+}
+
+void GetBoundingBox(uint16_t *x_min, uint16_t *x_max, uint16_t *y_min, uint16_t *y_max) {
+    *x_min = bounding_box_x_min;
+    *x_max = bounding_box_x_max;
+    *y_min = bounding_box_y_min;
+    *y_max = bounding_box_y_max;
 }
 
 void DrawLine4BPP(int x0, int y0, int x1, int y1, uint8_t color)
@@ -90,4 +138,11 @@ void DrawLine4BPP(int x0, int y0, int x1, int y1, uint8_t color)
 void ClearBuffers() {
   memset(ssd1320_left_buffer, 0x00, SSD1320_BUF_SIZE);
   memset(ssd1320_right_buffer, 0x00, SSD1320_BUF_SIZE);
+}
+
+float EaseInOutQuad(float t, float b, float c, float d) {
+  t /= d / 2;
+  if (t < 1) return c / 2 * t * t + b;
+  t--;
+  return -c / 2 * (t * (t - 2) - 1) + b;
 }

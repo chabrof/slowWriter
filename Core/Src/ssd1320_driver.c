@@ -169,7 +169,7 @@ void SSD1320_SendBuffer_Left()
   HAL_SPI_Transmit_DMA(&hspi1, ssd1320_left_buffer, SSD1320_BUF_SIZE);
 }
 
-void SSD1320_SendBuffer_Left()
+void SSD1320_SendBuffer_Right()
 {
   if (right_buffer_sending_status == BUFFER_SENT) {
     return;

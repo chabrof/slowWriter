@@ -27,8 +27,8 @@
 #define DMA_TRANSFER_LEFT 1
 #define DMA_TRANSFER_RIGHT 2
 
-#define BUFFER_NOT_SENT = 0
-#define BUFFER_SENT = 1
+#define BUFFER_NOT_SENT 0
+#define BUFFER_SENT 1
 
 
 void SSD1320_Init(void);

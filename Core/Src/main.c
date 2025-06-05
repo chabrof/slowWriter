@@ -137,10 +137,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 void App_DrawUI(void)
 {
   ClearBuffers();
-  // DrawText4BPP(draw_buffer, "aac", 10, 5, 0xF);
-  // DrawRect4BPP(draw_buffer, 5, 20, 100, 30, 0x7, 0);
-  // DrawLine4BPP(draw_buffer, 0, 0, 127, 63, 0xC);
-  //  OLED_Clear(5,20,320,132,0xff);
+  ResetBoundingBox();
 
   DrawRect4BPP(0, 0, 160, 132, 0x8, 0);
   DrawLine4BPP(0, 0, 70, 131, 0x7);
@@ -149,16 +146,15 @@ void App_DrawUI(void)
   DrawRect4BPP(260, 40, 26, 30, 0x8, 0);
 
   DrawText4BPP("SSD1320z2", 180, 20, 0xc);
-  /*DrawLine4BPP(draw_buffer, 100, 100, 200, 100, 0xff);
-  DrawLine4BPP(draw_buffer, 100, 100, 200, 131, 0xff);
-  DrawLine4BPP(draw_buffer, 200, 100, 200, 131, 0xff);*/
-  printf("Buffer size %i \r\n", SSD1320_BUF_SIZE);
 
-  SSD1320_SetAddress(0, 79, 0, 131);
-  SSD1320_SendBuffers();
+  uint16_t x_min, x_max, y_min, y_max;
+  GetBoundingBox(&x_min, &x_max, &y_min, &y_max);
 
-  // SSD1320_SendDataRight(draw_buffer, SSD1320_BUF_SIZE);
-  // SSD1320_SwapBuffers();
+  SSD1320_SetAddress(x_min / 2, x_max / 2, y_min, y_max);
+  //SSD1320_SetAddress(0, 79, 0, 131);
+  SSD1320_SendBuffer_Left();
+  SSD1320_SendBuffer_Right();
+
   frame_ready = 1;
 }
 
@@ -218,6 +214,8 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  static uint32_t animationStartTime = 0;
+  static uint32_t animationDuration = 2000; // Durée de l'animation en ms (2 secondes)
 
   while (1)
   {
@@ -255,9 +253,13 @@ int main(void)
         }
       }
     }
-
+    /*
+    bool is_animation_wished = false;
     if (fr1_flag) {
+      // Trigger animation after transfert for left and right buffers
+      is_animation_wished = true;
       fr1_flag = false;
+      SSD1320_SetAddress(0, 79, 0, 131);
       SSD1320_SendBuffer_Left();
     }
 
@@ -266,6 +268,38 @@ int main(void)
       SSD1320_SendBuffer_Right();
     }
 
+    if (is_animation_wished) {
+      // Calculer le temps écoulé depuis le début de l'animation
+      uint32_t elapsedTime = HAL_GetTick() - animationStartTime;
+
+      // Réinitialiser l'animation après sa durée
+      if (elapsedTime > animationDuration) {
+        animationStartTime = HAL_GetTick();
+        elapsedTime = 0;
+      }
+      // Effacer les buffers avant de dessiner
+      ClearBuffers();
+
+      // Animation du premier rectangle
+      uint16_t rect1StartX = 10, rect1EndX = 100;
+      uint16_t rect1StartY = 20, rect1EndY = 80;
+      uint16_t rect1Width = 30, rect1Height = 20;
+
+      uint16_t rect1X = (uint16_t)EaseInOutQuad(elapsedTime, rect1StartX, rect1EndX - rect1StartX, animationDuration);
+      uint16_t rect1Y = (uint16_t)EaseInOutQuad(elapsedTime, rect1StartY, rect1EndY - rect1StartY, animationDuration);
+
+      DrawRect4BPP(rect1X, rect1Y, rect1Width, rect1Height, 0xF, 1);
+
+      // Animation du deuxième rectangle
+      uint16_t rect2StartX = 200, rect2EndX = 120;
+      uint16_t rect2StartY = 50, rect2EndY = 100;
+      uint16_t rect2Width = 40, rect2Height = 30;
+
+      uint16_t rect2X = (uint16_t)EaseInOutQuad(elapsedTime, rect2StartX, rect2EndX - rect2StartX, animationDuration);
+      uint16_t rect2Y = (uint16_t)EaseInOutQuad(elapsedTime, rect2StartY, rect2EndY - rect2StartY, animationDuration);
+
+      DrawRect4BPP(rect2X, rect2Y, rect2Width, rect2Height, 0x7, 1);
+    }*/
     rotary_process_log();
   }
   /* USER CODE END 3 */
