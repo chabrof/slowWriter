@@ -12,7 +12,7 @@ void DrawChar4BPP(char c, uint16_t x, uint16_t y, uint8_t color);
 void DrawText4BPP(const char* text, uint16_t x, uint16_t y, uint8_t color);
 void DrawRect4BPP(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint8_t color, uint8_t filled);
 void DrawLine4BPP(int x0, int y0, int x1, int y1, uint8_t color);
-void ClearBuffers();
+void ClearCurPaintingBuffer();
 float EaseInOutQuad(float t, float b, float c, float d);
 
 #endif /* INC_SSD1320_GRAPHICS_H_ */

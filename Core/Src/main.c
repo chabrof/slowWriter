@@ -4,6 +4,12 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "dma.h"
+#include "memorymap.h"
+#include "spi.h"
+#include "tim.h"
+#include "usart.h"
+#include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -40,14 +46,6 @@
 
 /* Private variables ---------------------------------------------------------*/
 
-SPI_HandleTypeDef hspi1;
-DMA_HandleTypeDef hdma_spi1_tx;
-
-TIM_HandleTypeDef htim2;
-TIM_HandleTypeDef htim8;
-
-UART_HandleTypeDef huart4;
-
 /* USER CODE BEGIN PV */
 uint8_t frame_ready = 0;
 
@@ -61,12 +59,6 @@ uint8_t image_bw[EPD_W_BUFF_SIZE * EPD_H];
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MPU_Config(void);
-static void MX_GPIO_Init(void);
-static void MX_DMA_Init(void);
-static void MX_TIM8_Init(void);
-static void MX_UART4_Init(void);
-static void MX_SPI1_Init(void);
-static void MX_TIM2_Init(void);
 /* USER CODE BEGIN PFP */
 #ifdef __WE_ACT_STUDIO_VERSION
 int _mainWeActStudio(void);
@@ -133,10 +125,10 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
   }
 }
 #endif
-
+/*
 void App_DrawUI(void)
 {
-  ClearBuffers();
+  ClearCurPaintingBuffer();
   ResetBoundingBox();
 
   DrawRect4BPP(0, 0, 160, 132, 0x8, 0);
@@ -148,16 +140,16 @@ void App_DrawUI(void)
   DrawText4BPP("SSD1320z2", 180, 20, 0xc);
 
   uint16_t x_min, x_max, y_min, y_max;
-  GetBoundingBox(&x_min, &x_max, &y_min, &y_max);
+  //GetBoundingBox(&x_min, &x_max, &y_min, &y_max);
 
-  SSD1320_SetAddress(x_min / 2, x_max / 2, y_min, y_max);
-  //SSD1320_SetAddress(0, 79, 0, 131);
+  //SSD1320_SetAddress(x_min / 2, x_max / 2, y_min, y_max);
+  SSD1320_SetAddress(0, 79, 0, 131);
   SSD1320_SendBuffer_Left();
   SSD1320_SendBuffer_Right();
 
   frame_ready = 1;
 }
-
+*/
 /* USER CODE END 0 */
 
 /**
@@ -208,14 +200,14 @@ int main(void)
   printf("Screen init : \r\n");
   SSD1320_Init();
 
-  App_DrawUI();
+  //App_DrawUI();
   test_cpp_class();
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   static uint32_t animationStartTime = 0;
-  static uint32_t animationDuration = 2000; // Durée de l'animation en ms (2 secondes)
+  static uint32_t animationDuration = 4000; // Durée de l'animation en ms (2 secondes)
 
   while (1)
   {
@@ -253,7 +245,7 @@ int main(void)
         }
       }
     }
-    /*
+    
     bool is_animation_wished = false;
     if (fr1_flag) {
       // Trigger animation after transfert for left and right buffers
@@ -277,11 +269,14 @@ int main(void)
         animationStartTime = HAL_GetTick();
         elapsedTime = 0;
       }
-      // Effacer les buffers avant de dessiner
-      ClearBuffers();
+      // Effacer le buffer avant de dessiner
+      ClearCurPaintingBuffer();
+
+      // Fix position rectangle
+      DrawRect4BPP(150, 20, 60, 40, 0x9, 1);
 
       // Animation du premier rectangle
-      uint16_t rect1StartX = 10, rect1EndX = 100;
+      uint16_t rect1StartX = 90, rect1EndX = 210;
       uint16_t rect1StartY = 20, rect1EndY = 80;
       uint16_t rect1Width = 30, rect1Height = 20;
 
@@ -299,7 +294,7 @@ int main(void)
       uint16_t rect2Y = (uint16_t)EaseInOutQuad(elapsedTime, rect2StartY, rect2EndY - rect2StartY, animationDuration);
 
       DrawRect4BPP(rect2X, rect2Y, rect2Width, rect2Height, 0x7, 1);
-    }*/
+    }
     rotary_process_log();
   }
   /* USER CODE END 3 */
@@ -362,346 +357,6 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-}
-
-/**
-  * @brief SPI1 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_SPI1_Init(void)
-{
-
-  /* USER CODE BEGIN SPI1_Init 0 */
-
-  /* USER CODE END SPI1_Init 0 */
-
-  /* USER CODE BEGIN SPI1_Init 1 */
-
-  /* USER CODE END SPI1_Init 1 */
-  /* SPI1 parameter configuration*/
-  hspi1.Instance = SPI1;
-  hspi1.Init.Mode = SPI_MODE_MASTER;
-  hspi1.Init.Direction = SPI_DIRECTION_2LINES_TXONLY;
-  hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
-  hspi1.Init.CLKPolarity = SPI_POLARITY_HIGH;
-  hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
-  hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
-  hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
-  hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
-  hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
-  hspi1.Init.CRCPolynomial = 0x0;
-  hspi1.Init.NSSPMode = SPI_NSS_PULSE_ENABLE;
-  hspi1.Init.NSSPolarity = SPI_NSS_POLARITY_LOW;
-  hspi1.Init.FifoThreshold = SPI_FIFO_THRESHOLD_01DATA;
-  hspi1.Init.TxCRCInitializationPattern = SPI_CRC_INITIALIZATION_ALL_ZERO_PATTERN;
-  hspi1.Init.RxCRCInitializationPattern = SPI_CRC_INITIALIZATION_ALL_ZERO_PATTERN;
-  hspi1.Init.MasterSSIdleness = SPI_MASTER_SS_IDLENESS_00CYCLE;
-  hspi1.Init.MasterInterDataIdleness = SPI_MASTER_INTERDATA_IDLENESS_00CYCLE;
-  hspi1.Init.MasterReceiverAutoSusp = SPI_MASTER_RX_AUTOSUSP_DISABLE;
-  hspi1.Init.MasterKeepIOState = SPI_MASTER_KEEP_IO_STATE_DISABLE;
-  hspi1.Init.IOSwap = SPI_IO_SWAP_DISABLE;
-  if (HAL_SPI_Init(&hspi1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN SPI1_Init 2 */
-
-  /* USER CODE END SPI1_Init 2 */
-
-}
-
-/**
-  * @brief TIM2 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM2_Init(void)
-{
-
-  /* USER CODE BEGIN TIM2_Init 0 */
-
-  /* USER CODE END TIM2_Init 0 */
-
-  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
-  TIM_MasterConfigTypeDef sMasterConfig = {0};
-
-  /* USER CODE BEGIN TIM2_Init 1 */
-
-  /* USER CODE END TIM2_Init 1 */
-  htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 64000;
-  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 1;
-  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
-  if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM2_Init 2 */
-
-  /* USER CODE END TIM2_Init 2 */
-
-}
-
-/**
-  * @brief TIM8 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM8_Init(void)
-{
-
-  /* USER CODE BEGIN TIM8_Init 0 */
-
-  /* USER CODE END TIM8_Init 0 */
-
-  TIM_SlaveConfigTypeDef sSlaveConfig = {0};
-  TIM_MasterConfigTypeDef sMasterConfig = {0};
-  TIM_IC_InitTypeDef sConfigIC = {0};
-
-  /* USER CODE BEGIN TIM8_Init 1 */
-
-  /* USER CODE END TIM8_Init 1 */
-  htim8.Instance = TIM8;
-  htim8.Init.Prescaler = 0;
-  htim8.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim8.Init.Period = 65535;
-  htim8.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim8.Init.RepetitionCounter = 0;
-  htim8.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_Base_Init(&htim8) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if (HAL_TIM_IC_Init(&htim8) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sSlaveConfig.SlaveMode = TIM_SLAVEMODE_EXTERNAL1;
-  sSlaveConfig.InputTrigger = TIM_TS_ITR0;
-  if (HAL_TIM_SlaveConfigSynchro(&htim8, &sSlaveConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-  sMasterConfig.MasterOutputTrigger2 = TIM_TRGO2_RESET;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim8, &sMasterConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sConfigIC.ICPolarity = TIM_INPUTCHANNELPOLARITY_RISING;
-  sConfigIC.ICSelection = TIM_ICSELECTION_DIRECTTI;
-  sConfigIC.ICPrescaler = TIM_ICPSC_DIV1;
-  sConfigIC.ICFilter = 0;
-  if (HAL_TIM_IC_ConfigChannel(&htim8, &sConfigIC, TIM_CHANNEL_1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if (HAL_TIMEx_TISelection(&htim8, TIM_TIM8_TI1_COMP2, TIM_CHANNEL_1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sConfigIC.ICSelection = TIM_ICSELECTION_INDIRECTTI;
-  if (HAL_TIM_IC_ConfigChannel(&htim8, &sConfigIC, TIM_CHANNEL_2) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM8_Init 2 */
-
-  /* USER CODE END TIM8_Init 2 */
-
-}
-
-/**
-  * @brief UART4 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_UART4_Init(void)
-{
-
-  /* USER CODE BEGIN UART4_Init 0 */
-
-  /* USER CODE END UART4_Init 0 */
-
-  /* USER CODE BEGIN UART4_Init 1 */
-
-  /* USER CODE END UART4_Init 1 */
-  huart4.Instance = UART4;
-  huart4.Init.BaudRate = 115200;
-  huart4.Init.WordLength = UART_WORDLENGTH_8B;
-  huart4.Init.StopBits = UART_STOPBITS_1;
-  huart4.Init.Parity = UART_PARITY_NONE;
-  huart4.Init.Mode = UART_MODE_TX_RX;
-  huart4.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-  huart4.Init.OverSampling = UART_OVERSAMPLING_16;
-  huart4.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
-  huart4.Init.ClockPrescaler = UART_PRESCALER_DIV1;
-  huart4.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
-  if (HAL_UART_Init(&huart4) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if (HAL_UARTEx_SetTxFifoThreshold(&huart4, UART_TXFIFO_THRESHOLD_1_8) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if (HAL_UARTEx_SetRxFifoThreshold(&huart4, UART_RXFIFO_THRESHOLD_1_8) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if (HAL_UARTEx_DisableFifoMode(&huart4) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN UART4_Init 2 */
-
-  /* USER CODE END UART4_Init 2 */
-
-}
-
-/**
-  * Enable DMA controller clock
-  */
-static void MX_DMA_Init(void)
-{
-
-  /* DMA controller clock enable */
-  __HAL_RCC_DMA1_CLK_ENABLE();
-
-  /* DMA interrupt init */
-  /* DMA1_Stream0_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Stream0_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(DMA1_Stream0_IRQn);
-
-}
-
-/**
-  * @brief GPIO Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_GPIO_Init(void)
-{
-  GPIO_InitTypeDef GPIO_InitStruct = {0};
-  /* USER CODE BEGIN MX_GPIO_Init_1 */
-  /* USER CODE END MX_GPIO_Init_1 */
-
-  /* GPIO Ports Clock Enable */
-  __HAL_RCC_GPIOE_CLK_ENABLE();
-  __HAL_RCC_GPIOC_CLK_ENABLE();
-  __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOB_CLK_ENABLE();
-  __HAL_RCC_GPIOD_CLK_ENABLE();
-
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LED_ON_BOARD_GPIO_Port, LED_ON_BOARD_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_SET);
-
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, SPI12_DC_Pin|SPI2_CS_Pin|SPI12_RESET_Pin, GPIO_PIN_SET);
-
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOD, KEYB_COL_OUT_7_Pin|KEYB_COL_OUT_0_Pin|KEYB_COL_OUT_6_Pin|KEYB_COL_OUT_1_Pin
-                          |KEYB_COL_OUT_5_Pin|KEYB_COL_OUT_2_Pin|KEYB_COL_OUT_4_Pin|KEYB_COL_OUT_3_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin : LED_ON_BOARD_Pin */
-  GPIO_InitStruct.Pin = LED_ON_BOARD_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(LED_ON_BOARD_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : SPI1_FR_Pin SPI2_FR_Pin */
-  GPIO_InitStruct.Pin = SPI1_FR_Pin|SPI2_FR_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
-  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : SPI1_CS_Pin */
-  GPIO_InitStruct.Pin = SPI1_CS_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(SPI1_CS_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : SPI2_BUSY_Pin */
-  GPIO_InitStruct.Pin = SPI2_BUSY_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(SPI2_BUSY_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : SPI12_DC_Pin SPI2_CS_Pin SPI12_RESET_Pin */
-  GPIO_InitStruct.Pin = SPI12_DC_Pin|SPI2_CS_Pin|SPI12_RESET_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_MEDIUM;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : ROT_ENCOD_CLICK_Pin */
-  GPIO_InitStruct.Pin = ROT_ENCOD_CLICK_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(ROT_ENCOD_CLICK_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : ROT_ENCOD_LEFT_Pin ROT_ENCOD_RIGHT_Pin */
-  GPIO_InitStruct.Pin = ROT_ENCOD_LEFT_Pin|ROT_ENCOD_RIGHT_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : KEYB_COL_OUT_7_Pin KEYB_COL_OUT_0_Pin KEYB_COL_OUT_6_Pin KEYB_COL_OUT_1_Pin
-                           KEYB_COL_OUT_5_Pin KEYB_COL_OUT_2_Pin KEYB_COL_OUT_4_Pin KEYB_COL_OUT_3_Pin */
-  GPIO_InitStruct.Pin = KEYB_COL_OUT_7_Pin|KEYB_COL_OUT_0_Pin|KEYB_COL_OUT_6_Pin|KEYB_COL_OUT_1_Pin
-                          |KEYB_COL_OUT_5_Pin|KEYB_COL_OUT_2_Pin|KEYB_COL_OUT_4_Pin|KEYB_COL_OUT_3_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : KEYB_ROW_IN_7_Pin KEYB_ROW_IN_0_Pin KEYB_ROW_IN_6_NOT_WORKING_Pin KEYB_ROW_IN_1_NOTWORKING_Pin */
-  GPIO_InitStruct.Pin = KEYB_ROW_IN_7_Pin|KEYB_ROW_IN_0_Pin|KEYB_ROW_IN_6_NOT_WORKING_Pin|KEYB_ROW_IN_1_NOTWORKING_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : KEYB_ROW_IN_5_Pin KEYB_ROW_IN_2_Pin KEYB_ROW_IN_4_Pin KEYB_ROW_IN_3_Pin
-                           KEYB_ROW_IN_1_Pin KEYB_ROW_IN_6_Pin */
-  GPIO_InitStruct.Pin = KEYB_ROW_IN_5_Pin|KEYB_ROW_IN_2_Pin|KEYB_ROW_IN_4_Pin|KEYB_ROW_IN_3_Pin
-                          |KEYB_ROW_IN_1_Pin|KEYB_ROW_IN_6_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-  /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(SPI1_FR_EXTI_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(SPI1_FR_EXTI_IRQn);
-
-  HAL_NVIC_SetPriority(SPI2_FR_EXTI_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(SPI2_FR_EXTI_IRQn);
-
-  HAL_NVIC_SetPriority(ROT_ENCOD_LEFT_EXTI_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(ROT_ENCOD_LEFT_EXTI_IRQn);
-
-  /* USER CODE BEGIN MX_GPIO_Init_2 */
-  /* USER CODE END MX_GPIO_Init_2 */
 }
 
 /* USER CODE BEGIN 4 */

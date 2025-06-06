@@ -4,6 +4,10 @@
 #include <stdlib.h>
 #include "font8x8_basic.h"
 
+// Double Frame buffer
+extern T_Frame_Buffer* buffers;
+extern uint8_t cur_buffer_idx_to_paint;
+
 void SetPixel4BPP(uint16_t x, uint16_t y, uint8_t gray)
 {
   if (x >= SSD1320_WIDTH || y >= SSD1320_HEIGHT)
@@ -14,10 +18,10 @@ void SetPixel4BPP(uint16_t x, uint16_t y, uint8_t gray)
 
   // Choisir le buffer selon la moitié
   if (x < SSD1320_HALF_WIDTH) {
-    buf = ssd1320_left_buffer;
+    buf = buffers[cur_buffer_idx_to_paint].left_screen_data;
     local_x = x;
   } else {
-    buf = ssd1320_right_buffer;
+    buf = buffers[cur_buffer_idx_to_paint].right_screen_data;
     local_x = x - 160;
   }
 
@@ -135,9 +139,9 @@ void DrawLine4BPP(int x0, int y0, int x1, int y1, uint8_t color)
   }
 }
 
-void ClearBuffers() {
-  memset(ssd1320_left_buffer, 0x00, SSD1320_BUF_SIZE);
-  memset(ssd1320_right_buffer, 0x00, SSD1320_BUF_SIZE);
+void ClearCurPaintingBuffer() {
+  memset(buffers[cur_buffer_idx_to_paint].left_screen_data, 0x00, SSD1320_BUF_SIZE);
+  memset(buffers[cur_buffer_idx_to_paint].right_screen_data, 0x00, SSD1320_BUF_SIZE);
 }
 
 float EaseInOutQuad(float t, float b, float c, float d) {
