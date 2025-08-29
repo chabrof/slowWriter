@@ -50,6 +50,8 @@ void SSD1320_SendCommandRight(uint8_t cmd);
 void SSD1320_SendCommandBoth(uint8_t cmd);
 void SSD1320_SendBuffer_Left();
 void SSD1320_SendBuffer_Right();
+void SSD1320_Switch_Buffers();
+void SSD1320_Reset(void);
 void OLED_Clear(uint16_t x1,uint16_t y1,uint16_t x2,uint16_t y2,uint8_t color);
 void SSD1320_SetAddress(uint16_t x1,uint16_t x2,uint16_t y1,uint16_t y2);
 

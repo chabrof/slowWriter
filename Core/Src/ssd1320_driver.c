@@ -53,6 +53,12 @@ void SSD1320_SendCommandBoth(uint8_t cmd) {
   SSD1320_CS2_HIGH();
 }
 
+void SSD1320_Switch_Buffers() {
+    uint8_t temp = cur_buffer_idx_to_send;
+    cur_buffer_idx_to_send = cur_buffer_idx_to_paint;
+    cur_buffer_idx_to_paint = temp;
+}
+
 void SSD1320_SetAddress(uint16_t x1,uint16_t x2,uint16_t y1,uint16_t y2)
 {
   SSD1320_SendCommandLeft(0x21); // Column Address Set
