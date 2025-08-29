@@ -117,10 +117,12 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 #else
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
-  if (GPIO_Pin == SPI2_FR_Pin) {
+  if (GPIO_Pin == SPI1_FR_Pin) {
+      printf("Left ready");
     fr1_flag = true; 
   }
   if (GPIO_Pin == SPI2_FR_Pin) {
+      printf("Right ready");
     fr2_flag = true; 
   }
 }
@@ -208,7 +210,7 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   static uint32_t animationStartTime = 0;
   static uint32_t animationDuration = 4000; // Durée de l'animation en ms (2 secondes)
-
+  bool is_animation_wished = false;
   while (1)
   {
     /* USER CODE END WHILE */
@@ -246,33 +248,51 @@ int main(void)
       }
     }
     
-    bool is_animation_wished = false;
+    
     if (fr1_flag) {
-      // Trigger animation after transfert for left and right buffers
-      is_animation_wished = true;
       fr1_flag = false;
-      SSD1320_SetAddress(0, 79, 0, 131);
-      SSD1320_SendBuffer_Left();
+      // Trigger animation after transfer for left and right buffers
+      if (
+        buffers[cur_buffer_idx_to_send].left_screen_status != BUFFER_SENDING &&
+        buffers[cur_buffer_idx_to_send].right_screen_status != BUFFER_SENDING) {
+
+        is_animation_wished = true;
+
+      }
+
     }
 
     if (fr2_flag) {
       fr2_flag = false;
-      SSD1320_SendBuffer_Right();
+      if (
+        buffers[cur_buffer_idx_to_send].left_screen_status != BUFFER_SENDING &&
+        buffers[cur_buffer_idx_to_send].right_screen_status != BUFFER_SENDING) {
+        is_animation_wished = true;
+
+      //SSD1320_SetAddress(0, 79, 0, 131);
+      ///SSD1320_SetAddress(0, 79, 0, 131);
+
+      }
     }
 
+
     if (is_animation_wished) {
-      // Calculer le temps écoulé depuis le début de l'animation
+        printf("  Animation");
+      is_animation_wished = false;
+
+      // Calculate elapsed time for animation
       uint32_t elapsedTime = HAL_GetTick() - animationStartTime;
 
-      // Réinitialiser l'animation après sa durée
+      // Reset animation after its duration
       if (elapsedTime > animationDuration) {
         animationStartTime = HAL_GetTick();
         elapsedTime = 0;
       }
-      // Effacer le buffer avant de dessiner
+
+      // Clear the buffer before drawing
       ClearCurPaintingBuffer();
 
-      // Fix position rectangle
+      // Draw fixed rectangle
       DrawRect4BPP(150, 20, 60, 40, 0x9, 1);
 
       // Animation du premier rectangle
@@ -294,7 +314,13 @@ int main(void)
       uint16_t rect2Y = (uint16_t)EaseInOutQuad(elapsedTime, rect2StartY, rect2EndY - rect2StartY, animationDuration);
 
       DrawRect4BPP(rect2X, rect2Y, rect2Width, rect2Height, 0x7, 1);
+
+      SSD1320_SetAddress(0, 79, 0, 131);
+      SSD1320_SendBuffer_Left();
+      //SSD1320_SendBuffer_Right();
     }
+
+    
     rotary_process_log();
   }
   /* USER CODE END 3 */

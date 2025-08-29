@@ -3,7 +3,7 @@
 #include "stdio.h"
 
 extern SPI_HandleTypeDef hspi1;
-volatile uint8_t dma_transfer_state = 0;
+volatile uint8_t dma_transfer_state = DMA_TRANSFER_NONE;
 
 T_Frame_Buffer double_buffer[2];
 T_Frame_Buffer* buffers = NULL;
@@ -30,10 +30,10 @@ void SSD1320_Reset(void)
 
 void SSD1320_SendCommandLeft(uint8_t cmd)
 {
-    SSD1320_DC_CMD();
-    SSD1320_CS1_LOW();
-    HAL_SPI_Transmit(&hspi1, &cmd, 1, HAL_MAX_DELAY);
-    SSD1320_CS1_HIGH();
+  SSD1320_DC_CMD();
+  SSD1320_CS1_LOW();
+  HAL_SPI_Transmit(&hspi1, &cmd, 1, HAL_MAX_DELAY);
+  SSD1320_CS1_HIGH();
 }
 
 void SSD1320_SendCommandRight(uint8_t cmd)
@@ -54,9 +54,9 @@ void SSD1320_SendCommandBoth(uint8_t cmd) {
 }
 
 void SSD1320_Switch_Buffers() {
-    uint8_t temp = cur_buffer_idx_to_send;
-    cur_buffer_idx_to_send = cur_buffer_idx_to_paint;
-    cur_buffer_idx_to_paint = temp;
+  uint8_t temp = cur_buffer_idx_to_send;
+  cur_buffer_idx_to_send = cur_buffer_idx_to_paint;
+  cur_buffer_idx_to_paint = temp;
 }
 
 void SSD1320_SetAddress(uint16_t x1,uint16_t x2,uint16_t y1,uint16_t y2)
@@ -79,7 +79,7 @@ void SSD1320_SetAddress(uint16_t x1,uint16_t x2,uint16_t y1,uint16_t y2)
 // End of DMA transfert cbk :
 void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi) {
   if (hspi->Instance == SPI1) {
-    if (dma_transfer_state == DMA_TRANSFER_NONE) {\
+    if (dma_transfer_state == DMA_TRANSFER_NONE) {
       // Not very useful, but just in case :
       SSD1320_CS1_HIGH();
       SSD1320_CS2_HIGH();
@@ -89,42 +89,44 @@ void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi) {
       dma_transfer_state = DMA_TRANSFER_NONE;
       SSD1320_CS1_HIGH();
       buffers[cur_buffer_idx_to_send].left_screen_status = BUFFER_SENT;
-      // Check if the right screen buffer  is already sent in order to switch buffers
-      if (buffers[cur_buffer_idx_to_send].right_screen_status == BUFFER_SENT) {
+      printf("Transmission gauche terminee %i \r\n", SSD1320_BUF_SIZE);
+
+      // Check if the right screen buffer is already sent
+      //if (buffers[cur_buffer_idx_to_send].right_screen_status == BUFFER_SENT) {
         SSD1320_Switch_Buffers();
-      }
-      //printf("Transmission gauche terminee %i \r\n", SSD1320_BUF_SIZE);
+        printf("Buffers switched after left screen transmission.\r\n");
+      //}
       return;
     }
     if (dma_transfer_state == DMA_TRANSFER_RIGHT) {
       dma_transfer_state = DMA_TRANSFER_NONE;
       SSD1320_CS2_HIGH();
       buffers[cur_buffer_idx_to_send].right_screen_status = BUFFER_SENT;
-      // Check if the left screen buffer  is already sent in order to switch buffers
-      if (buffers[cur_buffer_idx_to_send].left_screen_status == BUFFER_SENT) {
+      printf("Transmission droite terminee %i \r\n", SSD1320_BUF_SIZE);
+
+      // Check if the left screen buffer is already sent
+      //if (buffers[cur_buffer_idx_to_send].left_screen_status == BUFFER_SENT) {
         SSD1320_Switch_Buffers();
-      }
-      //printf("Transmission droite terminee %i \r\n", SSD1320_BUF_SIZE);
+        printf("Buffers switched after right screen transmission.\r\n");
+      //}
       return;
     }
   }
 }
 
-void SSD1320_SendBuffer_Left()
-{
-  while (dma_transfer_state != DMA_TRANSFER_NONE); // Attendre que le DMA soit inactif
+void SSD1320_SendBuffer_Left() {
+  while (dma_transfer_state != DMA_TRANSFER_NONE); // Wait for DMA to be inactive
   dma_transfer_state = DMA_TRANSFER_LEFT;
-  //printf("Transmission gauche %i \r\n", SSD1320_BUF_SIZE);
+  buffers[cur_buffer_idx_to_send].left_screen_status = BUFFER_SENDING;
   SSD1320_DC_DATA();
   SSD1320_CS1_LOW();
   HAL_SPI_Transmit_DMA(&hspi1, buffers[cur_buffer_idx_to_send].left_screen_data, SSD1320_BUF_SIZE);
 }
 
-void SSD1320_SendBuffer_Right()
-{
-  while (dma_transfer_state != DMA_TRANSFER_NONE); // Attendre que le DMA soit inactif
+void SSD1320_SendBuffer_Right() {
+  while (dma_transfer_state != DMA_TRANSFER_NONE); // Wait for DMA to be inactive
   dma_transfer_state = DMA_TRANSFER_RIGHT;
-  //printf("Transmission droite %i \r\n", SSD1320_BUF_SIZE);
+  buffers[cur_buffer_idx_to_send].right_screen_status = BUFFER_SENDING;
   SSD1320_DC_DATA();
   SSD1320_CS2_LOW();
   HAL_SPI_Transmit_DMA(&hspi1, buffers[cur_buffer_idx_to_send].right_screen_data, SSD1320_BUF_SIZE);
